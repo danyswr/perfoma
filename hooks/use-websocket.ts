@@ -1,0 +1,193 @@
+"use client"
+
+import { useState, useEffect, useCallback, useRef } from "react"
+
+const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"
+const WS_URL = `${WS_BASE}/ws/live`
+
+export interface WebSocketMessage {
+  type:
+    | "system"
+    | "mode_change"
+    | "queue_list"
+    | "queue_add"
+    | "queue_remove"
+    | "queue_edit"
+    | "chat_response"
+    | "agent_update"
+    | "error"
+  message?: string
+  mode?: string
+  queue?: QueueItem[]
+  total?: number
+  commands?: Record<string, string>
+  agents?: AgentUpdate[]
+  removed?: string
+  index?: number
+}
+
+export interface QueueItem {
+  index: number
+  command: string
+}
+
+export interface AgentUpdate {
+  id: string
+  status: "idle" | "running" | "paused" | "error"
+  last_command: string
+  execution_time: number
+  cpu_usage: number
+  memory_usage: number
+  progress: number
+}
+
+export function useWebSocket() {
+  const [connected, setConnected] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const reconnectAttempts = useRef(0)
+  const maxReconnectAttempts = 10
+  const messageHandlersRef = useRef<Map<string, (msg: WebSocketMessage) => void>>(new Map())
+
+  const connect = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return
+
+    setConnecting(true)
+    setConnectionError(null)
+
+    try {
+      const ws = new WebSocket(WS_URL)
+
+      ws.onopen = () => {
+        setConnected(true)
+        setConnecting(false)
+        setConnectionError(null)
+        reconnectAttempts.current = 0
+      }
+
+      ws.onclose = (event) => {
+        setConnected(false)
+        setConnecting(false)
+
+        // Don't reconnect if closed intentionally
+        if (event.code === 1000) return
+
+        // Exponential backoff for reconnection
+        if (reconnectAttempts.current < maxReconnectAttempts) {
+          const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000)
+          reconnectAttempts.current++
+          reconnectTimeoutRef.current = setTimeout(connect, delay)
+        } else {
+          setConnectionError("Unable to connect to backend. Please check if the server is running.")
+        }
+      }
+
+      ws.onerror = () => {
+        setConnecting(false)
+        setConnectionError("WebSocket connection error")
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data) as WebSocketMessage
+          setLastMessage(message)
+          const handler = messageHandlersRef.current.get(message.type)
+          if (handler) {
+            handler(message)
+          }
+        } catch {
+          // Failed to parse message
+        }
+      }
+
+      wsRef.current = ws
+    } catch {
+      setConnecting(false)
+      setConnectionError("Failed to create WebSocket connection")
+      reconnectTimeoutRef.current = setTimeout(connect, 3000)
+    }
+  }, [])
+
+  const disconnect = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+      reconnectTimeoutRef.current = null
+    }
+    if (wsRef.current) {
+      wsRef.current.close(1000, "User disconnected")
+      wsRef.current = null
+    }
+    setConnected(false)
+    setConnecting(false)
+  }, [])
+
+  const sendCommand = useCallback((content: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "command",
+          content,
+        }),
+      )
+      return true
+    }
+    return false
+  }, [])
+
+  const sendChat = useCallback((content: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "chat",
+          content,
+        }),
+      )
+      return true
+    }
+    return false
+  }, [])
+
+  const requestUpdates = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(
+        JSON.stringify({
+          type: "get_updates",
+        }),
+      )
+    }
+  }, [])
+
+  const onMessage = useCallback((type: string, handler: (msg: WebSocketMessage) => void) => {
+    messageHandlersRef.current.set(type, handler)
+    return () => {
+      messageHandlersRef.current.delete(type)
+    }
+  }, [])
+
+  useEffect(() => {
+    connect()
+
+    return () => {
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
+      wsRef.current?.close()
+    }
+  }, [connect])
+
+  return {
+    connected,
+    connecting,
+    connectionError,
+    lastMessage,
+    sendCommand,
+    sendChat,
+    requestUpdates,
+    onMessage,
+    disconnect,
+    reconnect: connect,
+  }
+}

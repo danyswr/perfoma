@@ -1,0 +1,33 @@
+fastapi==0.110.0
+uvicorn[standard]==0.28.0
+websockets==13.0
+python-dotenv==1.0.0
+psutil==6.0.0
+pydantic==2.6.0
+httpx==0.27.0
+aiosqlite==0.20.0
+sqlalchemy==2.0.31
+reportlab==4.1.0
+matplotlib==3.9.1
+jinja2==3.1.4
+pandas==2.2.3
+python-multipart==0.0.7
+aiofiles==24.1.0
+
+# HTTP clients with proxy support
+aiohttp==3.10.0
+requests==2.32.0
+
+# Settings management
+pydantic-settings==2.2.1
+
+# AI/ML clients - using standard SDK packages
+openai==1.28.0
+anthropic==0.28.0
+
+# JSON logging
+python-json-logger==2.0.7
+
+# Report generation
+markdown==3.6.0
+weasyprint==62.0
