@@ -5,3 +5,53 @@ expertMode = true
 [nix]
 channel = "stable-25_05"
 packages = ["cairo", "ffmpeg-full", "fontconfig", "freetype", "ghostscript", "glib", "glibcLocales", "gobject-introspection", "gtk3", "harfbuzz", "libxcrypt", "pango", "pkg-config", "qhull", "tcl", "tk"]
+
+[userenv]
+
+[userenv.shared]
+LOG_DIR = "./logs"
+FINDINGS_DIR = "./findings"
+HOST = "0.0.0.0"
+PORT = "8000"
+NEXT_PUBLIC_API_URL = ""
+NEXT_PUBLIC_WS_URL = "ws://localhost:8000"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start Application"
+
+[[workflows.workflow]]
+name = "Start Application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "bash run.sh"
+waitForPort = 5000
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 8000
+externalPort = 8000
+
+[[ports]]
+localPort = 42715
+externalPort = 3000
+
+[deployment]
+deploymentTarget = "vm"
+run = ["bash", "run.sh"]

@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || ""
 
 export interface ApiResponse<T> {
   data?: T
@@ -23,7 +23,7 @@ async function handleResponse<T>(res: Response): Promise<ApiResponse<T>> {
 
 export async function checkBackendHealth(): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/`, {
+    const res = await fetch(`${API_BASE}/api/agents`, {
       method: "GET",
       signal: AbortSignal.timeout(5000),
     })
