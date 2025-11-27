@@ -2,8 +2,14 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 
-const WS_BASE = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8000"
-const WS_URL = `${WS_BASE}/ws/live`
+const getWsUrl = () => {
+  if (typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${window.location.host}/ws/live`
+  }
+  return "ws://localhost:8000/ws/live"
+}
+const WS_URL = getWsUrl()
 
 export interface WebSocketMessage {
   type:

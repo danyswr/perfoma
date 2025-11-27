@@ -223,6 +223,101 @@ class ModelRouter:
             message
         )
     
+    async def test_connection(self, provider: str, model: str, api_key: str = None) -> Dict[str, Any]:
+        """Test connection to AI model"""
+        import time
+        
+        test_key = api_key or settings.OPENROUTER_API_KEY
+        
+        if not test_key or not test_key.strip():
+            return {
+                "status": "error",
+                "message": "API key is not configured",
+                "provider": provider,
+                "model": model
+            }
+        
+        if not test_key.startswith("sk-"):
+            return {
+                "status": "error",
+                "message": "Invalid API key format (should start with 'sk-')",
+                "provider": provider,
+                "model": model
+            }
+        
+        try:
+            start_time = time.time()
+            
+            headers = {
+                "Authorization": f"Bearer {test_key}",
+                "HTTP-Referer": "https://github.com/performa-ai",
+                "X-Title": "Performa API Test",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "model": model,
+                "messages": [{"role": "user", "content": "Say 'API connection successful' in 5 words or less."}],
+                "max_tokens": 20
+            }
+            
+            response = await self.client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=30.0
+            )
+            
+            latency = int((time.time() - start_time) * 1000)
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    "status": "success",
+                    "message": "API connection successful",
+                    "provider": provider,
+                    "model": model,
+                    "latency": f"{latency}ms",
+                    "response": data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                }
+            elif response.status_code == 402:
+                return {
+                    "status": "error",
+                    "message": "Insufficient credits on OpenRouter account",
+                    "provider": provider,
+                    "model": model
+                }
+            elif response.status_code == 401:
+                return {
+                    "status": "error",
+                    "message": "Invalid API key",
+                    "provider": provider,
+                    "model": model
+                }
+            else:
+                error_data = response.json() if response.text else {}
+                return {
+                    "status": "error",
+                    "message": f"API error {response.status_code}: {error_data.get('error', {}).get('message', 'Unknown error')}",
+                    "provider": provider,
+                    "model": model
+                }
+                
+        except httpx.TimeoutException:
+            return {
+                "status": "error",
+                "message": "Connection timeout (30s)",
+                "provider": provider,
+                "model": model
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Connection error: {str(e)}",
+                "provider": provider,
+                "model": model
+            }
+    
     async def close(self):
         """Close HTTP client"""
         await self.client.aclose()

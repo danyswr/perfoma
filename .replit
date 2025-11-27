@@ -14,7 +14,6 @@ FINDINGS_DIR = "./findings"
 HOST = "0.0.0.0"
 PORT = "8000"
 NEXT_PUBLIC_API_URL = ""
-NEXT_PUBLIC_WS_URL = "ws://localhost:8000"
 
 [workflows]
 runButton = "Project"
@@ -49,7 +48,7 @@ localPort = 8000
 externalPort = 8000
 
 [[ports]]
-localPort = 34699
+localPort = 35211
 externalPort = 3000
 
 [deployment]
