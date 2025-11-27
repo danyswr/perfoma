@@ -33,7 +33,6 @@ export function useMission() {
         }))
       }
     } catch {
-      // Silent fail
     }
   }, [])
 
@@ -46,9 +45,12 @@ export function useMission() {
           category: config.category,
           custom_instruction: config.customInstruction,
           stealth_mode: config.stealthMode,
-          aggressive_mode: config.aggressiveMode,
+          aggressive_mode: config.aggressiveLevel > 2,
+          aggressive_level: config.aggressiveLevel,
           model_name: config.modelName,
           num_agents: config.numAgents,
+          stealth_options: config.stealthOptions,
+          capabilities: config.capabilities,
         })
 
         if (response.error) {
@@ -71,7 +73,6 @@ export function useMission() {
           findings: 0,
         })
 
-        // Start duration timer
         timerRef.current = setInterval(() => {
           setMission((prev) => ({
             ...prev,
@@ -79,7 +80,6 @@ export function useMission() {
           }))
         }, 1000)
 
-        // Start polling for findings
         findingsIntervalRef.current = setInterval(fetchFindings, 5000)
 
         return agentIds
