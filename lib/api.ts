@@ -176,17 +176,16 @@ export const api = {
     }
   },
 
-  // <CHANGE> Added testModel endpoint to test API key and model configuration
-  async testModel(modelId: string) {
+  async testModel(payload: { provider: string; model: string; api_key?: string }) {
     try {
       const res = await fetch(`${API_BASE}/api/models/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model_id: modelId }),
+        body: JSON.stringify(payload),
       })
-      return handleResponse<{ status: string; message: string; model_id: string }>(res)
+      return handleResponse<{ status: string; message: string; provider: string; model: string; latency?: string; response?: string }>(res)
     } catch {
-      return { error: "Cannot test model" }
+      return { error: "Cannot connect to backend. Make sure the server is running." }
     }
   },
 }

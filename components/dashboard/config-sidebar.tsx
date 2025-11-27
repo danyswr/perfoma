@@ -108,28 +108,23 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
     setTestResult(null)
     
     try {
-      // 1. Tentukan Model ID
       const modelId = config.modelName === "custom" ? customModelId : config.modelName
-      
-      // 2. Tentukan Provider
       const selectedModel = MODELS.find(m => m.id === config.modelName)
-      const providerName = selectedModel ? selectedModel.provider : "Custom"
+      const providerName = selectedModel ? selectedModel.provider : "OpenRouter"
 
-      // 3. Buat payload
-      const payload = {
+      const response = await api.testModel({
         provider: providerName,
-        model: modelId,
-        api_key: "" 
-      }
-
-      // 4. Kirim payload ke API (casting as any untuk bypass type checking sementara)
-      const response = await (api as any).testModel(payload)
+        model: modelId
+      })
 
       if (response.error) {
         const errorMessage = parseApiError(response.error)
         setTestResult({ success: false, message: errorMessage })
+      } else if (response.data?.status === "error") {
+        setTestResult({ success: false, message: response.data.message })
       } else {
-        setTestResult({ success: true, message: response.data?.message || "Model test successful!" })
+        const latencyInfo = response.data?.latency ? ` (${response.data.latency})` : ""
+        setTestResult({ success: true, message: `Connected to ${modelId}${latencyInfo}` })
       }
     } catch (e) {
       console.error("Test API Error:", e)
