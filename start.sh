@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 
 # Configuration
 BACKEND_PORT=8000
-FRONTEND_PORT=3000
+FRONTEND_PORT=5000
 BACKEND_DIR="backend"
 
 echo -e "${CYAN}"

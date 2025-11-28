@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,9 +26,34 @@ import {
   TentIcon as TestIcon,
   Check,
   X,
+  AlertCircle,
+  Loader2
 } from "lucide-react"
-import { api } from "@/lib/api"
-import type { MissionConfig } from "@/lib/types"
+
+// --- MOCK DEFINITIONS FOR PREVIEW ---
+export interface MissionConfig {
+  target: string
+  category: "ip" | "domain" | "path"
+  customInstruction: string
+  stealthMode: boolean
+  aggressiveMode: boolean
+  modelName: string
+  numAgents: number
+}
+
+const api = {
+  testModel: async (params: { provider: string; model: string }) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    if (params.model === "error-test") {
+      return { data: null, error: { msg: "Failed to authenticate with provider" } }
+    }
+    return { 
+      data: { status: "success", latency: "145ms", message: "Connection successful" }, 
+      error: null 
+    }
+  }
+}
+// ------------------------------------
 
 interface ConfigSidebarProps {
   open: boolean
@@ -54,27 +79,20 @@ const CATEGORIES = [
   { id: "path", name: "Path", icon: Route },
 ]
 
-// Helper function untuk menangani error object dari API dengan aman
 function parseApiError(error: any): string {
   if (!error) return "Unknown error occurred"
   if (typeof error === "string") return error
-  
   if (typeof error === "object") {
-    // Cek format error umum dari Pydantic/FastAPI
     if (error.msg) return error.msg
     if (error.detail) {
       if (Array.isArray(error.detail)) {
-        // Jika detail array (seperti error validasi field), ambil pesan pertama
-        // Contoh: Field required: provider
         const firstError = error.detail[0]
         return `${firstError.loc?.[1] || 'Field'}: ${firstError.msg}`
       }
       return String(error.detail)
     }
-    // Fallback: ubah objek jadi string JSON
     return JSON.stringify(error)
   }
-  
   return String(error)
 }
 
@@ -91,15 +109,64 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
   const [customModelId, setCustomModelId] = useState("")
   const [testingModel, setTestingModel] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  
+  // Local loading state
+  const [isStarting, setIsStarting] = useState(false)
 
-  const handleStart = () => {
-    if (config.target) {
+  // --- VALIDATION LOGIC ---
+  const isCustomModel = config.modelName === "custom"
+  const isValidModel = !isCustomModel || (customModelId && customModelId.trim().length > 0)
+  const canStart = isValidModel && !missionActive && !isStarting
+
+  // 🔥 DEBUGGING: Tampilkan nilai penting di console
+  useEffect(() => {
+    console.log("🚀 [ConfigSidebar] Rendered with:", {
+      missionActive,
+      isStarting,
+      isValidModel,
+      canStart,
+      selectedModel: config.modelName,
+      customModelId: isCustomModel ? customModelId : "N/A",
+    })
+  }, [missionActive, isStarting, isValidModel, canStart, config.modelName, customModelId])
+
+  // Tentukan teks tombol
+  let statusMessage = "Start Mission"
+  if (missionActive) statusMessage = "Mission in Progress..."
+  else if (isStarting) statusMessage = "Initializing..."
+  else if (!isValidModel) statusMessage = "Enter Custom Model ID"
+
+  const handleStart = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+
+    console.log("🚀 [ConfigSidebar] handleStart triggered. canStart =", canStart)
+
+    if (canStart) {
+      setIsStarting(true)
+
       const finalConfig = {
         ...config,
-        modelName: config.modelName === "custom" ? customModelId : config.modelName,
+        target: config.target.trim(),
+        modelName: config.modelName === "custom" ? customModelId.trim() : config.modelName,
       }
-      onStartMission(finalConfig)
-      onOpenChange(false)
+
+      try {
+        console.log("✅ [ConfigSidebar] Calling onStartMission with config:", finalConfig)
+        onStartMission(finalConfig)
+        onOpenChange(false) // Tutup sidebar setelah start
+      } catch (error) {
+        console.error("❌ [ConfigSidebar] Error in onStartMission:", error)
+        // Tetap reset isStarting agar tombol bisa diklik lagi
+      } finally {
+        console.log("🔄 [ConfigSidebar] Resetting isStarting to false")
+        setIsStarting(false)
+      }
+    } else {
+      console.warn("⚠️ [ConfigSidebar] Start blocked. Reasons:", {
+        isValidModel,
+        missionActive,
+        isStarting
+      })
     }
   }
 
@@ -111,6 +178,8 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
       const modelId = config.modelName === "custom" ? customModelId : config.modelName
       const selectedModel = MODELS.find(m => m.id === config.modelName)
       const providerName = selectedModel ? selectedModel.provider : "OpenRouter"
+
+      console.log(`🧪 Testing model: ${modelId} via provider: ${providerName}`)
 
       const response = await api.testModel({
         provider: providerName,
@@ -127,15 +196,12 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
         setTestResult({ success: true, message: `Connected to ${modelId}${latencyInfo}` })
       }
     } catch (e) {
-      console.error("Test API Error:", e)
+      console.error("🧪 [ConfigSidebar] Test API Error:", e)
       setTestResult({ success: false, message: "Failed to connect to backend API" })
     } finally {
       setTestingModel(false)
     }
   }
-
-  const isCustomModel = config.modelName === "custom"
-  const canStart = config.target && (!isCustomModel || customModelId.trim())
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -154,16 +220,30 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
               </SheetDescription>
             </SheetHeader>
 
-            <div className="space-y-8">
+            <form onSubmit={handleStart} className="space-y-8">
+              
               {/* Target Input */}
               <div className="space-y-3">
-                <Label className="text-sm font-semibold text-sidebar-foreground">Target</Label>
-                <Input
-                  placeholder="Enter IP, domain, or path..."
-                  value={config.target}
-                  onChange={(e) => setConfig({ ...config, target: e.target.value })}
-                  className="h-11 bg-sidebar-accent border-sidebar-border focus:border-primary"
-                />
+                <div className="flex items-center justify-between">
+                    <Label className="text-sm font-semibold text-sidebar-foreground">Target</Label>
+                    <span className="text-xs text-muted-foreground font-normal">(Optional)</span>
+                </div>
+                
+                <div className="relative">
+                  <Input
+                    placeholder="Enter IP, domain, or path (Optional)..."
+                    value={config.target}
+                    onChange={(e) => setConfig({ ...config, target: e.target.value })}
+                    className={`h-11 bg-sidebar-accent border-sidebar-border focus:border-primary pr-10 ${
+                      config.target && config.target.trim().length > 0 ? "border-primary/50" : ""
+                    }`}
+                  />
+                  {config.target && config.target.trim().length > 0 && (
+                    <div className="absolute right-3 top-3 text-emerald-500">
+                      <Check className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Category Selection */}
@@ -173,13 +253,14 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
                   {CATEGORIES.map((cat) => (
                     <Button
                       key={cat.id}
+                      type="button" 
                       variant={config.category === cat.id ? "default" : "outline"}
                       className={`h-auto py-4 flex-col gap-2 transition-all ${
                         config.category === cat.id
                           ? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
                           : "bg-sidebar-accent border-sidebar-border hover:bg-sidebar-accent/80 hover:border-primary/50"
                       }`}
-                      onClick={() => setConfig({ ...config, category: cat.id })}
+                      onClick={() => setConfig({ ...config, category: cat.id as any })}
                     >
                       <cat.icon className="w-5 h-5" />
                       <span className="text-xs font-medium">{cat.name}</span>
@@ -286,22 +367,11 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
                       onChange={(e) => setCustomModelId(e.target.value)}
                       className="h-11 bg-sidebar border-sidebar-border focus:border-primary"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Enter the model ID from OpenRouter. Visit{" "}
-                      <a
-                        href="https://openrouter.ai/models"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        openrouter.ai/models
-                      </a>{" "}
-                      to find available models.
-                    </p>
                   </div>
                 )}
 
                 <Button
+                  type="button" 
                   variant="outline"
                   size="sm"
                   onClick={handleTestModel}
@@ -365,18 +435,25 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
               {/* Start Button */}
               <div className="pt-2 pb-4">
                 <Button
-                  onClick={handleStart}
-                  disabled={!canStart || missionActive}
-                  className="w-full gap-3 h-14 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all"
+                  type="submit" 
+                  disabled={!canStart}
+                  className="w-full gap-3 h-14 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Play className="w-5 h-5" />
-                  {missionActive ? "Mission in Progress..." : "Start Mission"}
+                  {isStarting || missionActive ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Play className="w-5 h-5" />
+                  )}
+                  {statusMessage}
                 </Button>
+                
                 {!canStart && isCustomModel && !customModelId.trim() && (
-                  <p className="text-xs text-destructive mt-2 text-center">Please enter a custom model ID</p>
+                  <p className="text-xs text-destructive mt-2 text-center animate-pulse">
+                    Please enter a custom model ID
+                  </p>
                 )}
               </div>
-            </div>
+            </form>
           </div>
         </ScrollArea>
       </SheetContent>
