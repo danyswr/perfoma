@@ -17,9 +17,12 @@ npm run dev > logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
 
 cleanup() {
-    echo "Shutting down..."
+    echo ""
+    echo "🛑 Stopping services..."
     kill $BACKEND_PID 2>/dev/null || true
     kill $FRONTEND_PID 2>/dev/null || true
+    echo "✅ Backend and Frontend stopped"
+    echo "ℹ️  Browser remains open - refresh to reconnect"
     exit 0
 }
 
@@ -28,5 +31,7 @@ trap cleanup SIGINT SIGTERM
 echo "✅ Services running!"
 echo "   Frontend: http://0.0.0.0:5000"
 echo "   Backend: http://0.0.0.0:8000"
+echo ""
+echo "Press Ctrl+C to stop backend and frontend (browser will stay open)"
 
 wait
