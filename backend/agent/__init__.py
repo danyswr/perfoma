@@ -2,6 +2,14 @@ from agent.manager import AgentManager
 from agent.worker import AgentWorker
 from agent.executor import CommandExecutor
 from agent.queue import QueueManager
+from agent.memory import AgentMemory, AgentMemoryManager, get_memory
+from agent.throttle import (
+    IntelligentThrottler, RateLimiter, ThrottleLevel
+)
+from agent.collaboration import (
+    InterAgentCommunication, KnowledgeBase, AgentCapability,
+    MessageType, Priority, AgentMessage
+)
 
 _agent_manager_instance = None
 
@@ -17,5 +25,17 @@ __all__ = [
     "AgentWorker", 
     "CommandExecutor",
     "QueueManager",
-    "get_agent_manager"
+    "get_agent_manager",
+    "AgentMemory",
+    "AgentMemoryManager",
+    "get_memory",
+    "IntelligentThrottler",
+    "RateLimiter",
+    "ThrottleLevel",
+    "InterAgentCommunication",
+    "KnowledgeBase",
+    "AgentCapability",
+    "MessageType",
+    "Priority",
+    "AgentMessage"
 ]

@@ -10,6 +10,36 @@ from tools import is_tool_allowed, is_dangerous_command, get_allowed_tools_by_ca
 import re
 import json
 
+from agent.memory import get_memory, AgentMemory
+from agent.throttle import IntelligentThrottler, RateLimiter, ThrottleLevel
+from agent.collaboration import (
+    InterAgentCommunication, KnowledgeBase, AgentCapability, 
+    MessageType, Priority, AgentMessage
+)
+import threading
+
+_shared_throttler = None
+_shared_rate_limiter = None
+_shared_agent_comm = None
+_shared_knowledge_base = None
+_init_lock = threading.Lock()
+
+def _get_shared_instances():
+    """Get or create shared instances with proper thread-safe locking"""
+    global _shared_throttler, _shared_rate_limiter, _shared_agent_comm, _shared_knowledge_base
+    
+    if _shared_throttler is not None:
+        return _shared_throttler, _shared_rate_limiter, _shared_agent_comm, _shared_knowledge_base
+    
+    with _init_lock:
+        if _shared_throttler is None:
+            _shared_throttler = IntelligentThrottler()
+            _shared_rate_limiter = RateLimiter()
+            _shared_agent_comm = InterAgentCommunication()
+            _shared_knowledge_base = KnowledgeBase()
+    
+    return _shared_throttler, _shared_rate_limiter, _shared_agent_comm, _shared_knowledge_base
+
 try:
     import psutil
     PSUTIL_AVAILABLE = True
@@ -19,7 +49,7 @@ except ImportError:
     psutil = None
 
 class AgentWorker:
-    """Individual autonomous agent worker"""
+    """Individual autonomous agent worker with SQLite memory, intelligent throttling, and collaboration"""
     
     def __init__(
         self,
@@ -55,22 +85,43 @@ class AgentWorker:
         self.executor = CommandExecutor(agent_id, stealth_mode, stealth_config, target, os_type)
         self.model_router = ModelRouter()
         
-        self.status = "idle"  # idle, running, paused, completed, error
+        self.status = "idle"
         self.start_time = None
         self.last_execute = "Not started"
         self.execution_history: List[Dict] = []
         self.context_history: List[Dict] = []
-        self.instruction_history: List[Dict] = []  # Store all model instructions
+        self.instruction_history: List[Dict] = []
         self.paused = False
         self.stopped = False
         
         self._last_cpu_usage: Optional[float] = None
         self._last_memory_usage: Optional[int] = None
         
+        self.memory: AgentMemory = get_memory()
+        throttler, rate_limiter, agent_comm, knowledge_base = _get_shared_instances()
+        self.throttler = throttler
+        self.rate_limiter = rate_limiter
+        self.agent_comm = agent_comm
+        self.knowledge_base = knowledge_base
+        
+        self._specializations = self._determine_specializations()
+        
+    def _determine_specializations(self) -> List[str]:
+        """Determine agent specializations based on category and capabilities"""
+        spec_map = {
+            "domain": ["network_recon", "osint", "subdomain_enum"],
+            "ip": ["network_recon", "port_scanning", "service_enum"],
+            "url": ["web_scanning", "vuln_scanning", "directory_enum"],
+            "file": ["static_analysis", "code_review"]
+        }
+        return spec_map.get(self.category, ["general"])
+        
     async def start(self):
-        """Start agent execution"""
+        """Start agent execution with memory, throttling, and collaboration initialization"""
         self.status = "running"
         self.start_time = time.time()
+        
+        await self._initialize_systems()
         
         await self.logger.log_event(
             f"Agent {self.agent_id} started",
@@ -78,7 +129,6 @@ class AgentWorker:
             {"agent_number": self.agent_number, "target": self.target or "no target"}
         )
         
-        # If no target is set, agent will run in standby mode with basic instructions
         if not self.target:
             self.last_execute = "Agent ready, awaiting target assignment"
             self.status = "idle"
@@ -104,6 +154,84 @@ class AgentWorker:
                 {"agent_id": self.agent_id}
             )
             await self._broadcast_status_update()
+        finally:
+            await self.memory.update_agent_status(self.agent_id, self.status)
+    
+    async def _initialize_systems(self):
+        """Initialize memory, throttling, and collaboration systems"""
+        await self.memory.initialize()
+        await self.memory.register_agent(
+            agent_id=self.agent_id,
+            agent_number=self.agent_number,
+            target=self.target,
+            category=self.category,
+            model_name=self.model_name,
+            metadata={
+                "stealth_mode": self.stealth_mode,
+                "aggressive_mode": self.aggressive_mode,
+                "specializations": self._specializations
+            }
+        )
+        
+        self.throttler.register_agent(self.agent_id, base_delay=1.5 if self.stealth_mode else 1.0)
+        
+        capability = AgentCapability(
+            agent_id=self.agent_id,
+            specializations=self._specializations,
+            current_load=0.0,
+            status="running",
+            target=self.target,
+            tools_available=list(get_allowed_tools_by_category().keys()),
+            findings_count=0
+        )
+        await self.agent_comm.register_agent(self.agent_id, capability)
+        
+        self.agent_comm.set_message_handler(self.agent_id, self._handle_agent_message)
+        
+        await self.logger.log_event(
+            f"Agent {self.agent_id} systems initialized",
+            "system",
+            {"memory": True, "throttler": True, "collaboration": True}
+        )
+    
+    async def _handle_agent_message(self, message: AgentMessage):
+        """Handle incoming messages from other agents"""
+        if message.message_type == MessageType.DISCOVERY:
+            discovery = message.content
+            await self.memory.add_knowledge(
+                agent_id=message.from_agent,
+                knowledge_type=discovery.get("discovery_type", "general"),
+                key=discovery.get("key", ""),
+                value=discovery.get("data", {}),
+                source=f"agent:{message.from_agent}"
+            )
+        
+        elif message.message_type == MessageType.FINDING:
+            finding = message.content
+            await self.logger.log_event(
+                f"Received finding from {message.from_agent}: {finding.get('content', '')[:100]}",
+                "collaboration"
+            )
+        
+        elif message.message_type == MessageType.REQUEST_HELP:
+            can_help = any(
+                spec in self._specializations 
+                for spec in message.content.get("requirements", {}).get("specializations", [])
+            )
+            if can_help and self.status in ["running", "idle"]:
+                await self.agent_comm.offer_help(
+                    from_agent=self.agent_id,
+                    to_agent=message.from_agent,
+                    help_request_id=message.id,
+                    capabilities=self._specializations
+                )
+        
+        elif message.message_type == MessageType.ALERT:
+            await self.logger.log_event(
+                f"ALERT from {message.from_agent}: {message.content.get('message', '')}",
+                "alert",
+                message.content
+            )
     
     async def _broadcast_status_update(self):
         """Broadcast current status to WebSocket clients"""
@@ -130,25 +258,42 @@ class AgentWorker:
             pass
     
     async def _run_autonomous_loop(self):
-        """Main autonomous execution loop"""
+        """Main autonomous execution loop with intelligent throttling and rate limiting"""
         
-        # Build initial system prompt
         system_prompt = self._build_system_prompt()
         
         iteration = 0
-        max_iterations = 50  # Prevent infinite loops
+        max_iterations = 50
         
         self.last_execute = f"Starting security analysis of {self.target}..."
         await self._broadcast_status_update()
         
         while not self.stopped and iteration < max_iterations:
-            # Check if paused
             while self.paused and not self.stopped:
                 self.last_execute = "Agent paused"
                 await asyncio.sleep(1)
             
             if self.stopped:
                 break
+            
+            throttle_result = await self.throttler.check_and_throttle(self.agent_id)
+            
+            if throttle_result.get("should_pause"):
+                pause_time = throttle_result.get("pause_remaining", 10)
+                self.last_execute = f"Auto-paused: {throttle_result.get('reason', 'Resource limit')}"
+                await self.logger.log_event(
+                    f"Agent {self.agent_id} auto-throttled",
+                    "throttle",
+                    throttle_result
+                )
+                await self._broadcast_status_update()
+                await asyncio.sleep(min(pause_time, 30))
+                continue
+            
+            if throttle_result.get("throttle_level") in ["HEAVY", "MODERATE"]:
+                delay = throttle_result.get("delay", 2)
+                self.last_execute = f"Throttling: {throttle_result.get('reason', 'High resource usage')}"
+                await asyncio.sleep(delay)
             
             iteration += 1
             if iteration >= max_iterations:
@@ -160,26 +305,52 @@ class AgentWorker:
             self.last_execute = f"Iteration {iteration}: Analyzing target..."
             await self._broadcast_status_update()
             
-            # Get next action from AI model
-            user_message = self._build_user_message(iteration)
+            user_message = await self._build_user_message_with_collaboration(iteration)
             
             try:
+                rate_limit_check = await self.rate_limiter.acquire(
+                    self.model_name, 
+                    estimated_tokens=2000
+                )
+                
+                if rate_limit_check.get("wait_time", 0) > 0:
+                    wait_time = rate_limit_check["wait_time"]
+                    self.last_execute = f"Rate limit delay: {wait_time:.1f}s"
+                    await self.logger.log_event(
+                        f"Agent {self.agent_id} rate limit delay",
+                        "rate_limit",
+                        {"model": self.model_name, "wait_time": wait_time}
+                    )
+                    await asyncio.sleep(wait_time)
+                
+                start_time = time.time()
                 response = await self.model_router.generate(
                     self.model_name,
                     system_prompt,
                     user_message,
-                    self.context_history[-10:]  # Last 10 messages
+                    self.context_history[-10:]
+                )
+                execution_time = time.time() - start_time
+                
+                await self.rate_limiter.record_request(
+                    self.model_name, 
+                    tokens_used=len(response) // 4,
+                    success=True
                 )
                 
-                # Update last_execute with a summary of the response
+                await self.memory.save_conversation(
+                    self.agent_id, "user", user_message, iteration
+                )
+                await self.memory.save_conversation(
+                    self.agent_id, "assistant", response, iteration
+                )
+                
                 response_summary = response[:100].replace('\n', ' ')
                 self.last_execute = f"AI: {response_summary}..."
                 
-                # Broadcast model instruction via WebSocket
                 await self._broadcast_model_instruction(response)
                 await self._broadcast_status_update()
                 
-                # Add to context
                 self.context_history.append({
                     "role": "user",
                     "content": user_message
@@ -189,7 +360,6 @@ class AgentWorker:
                     "content": response
                 })
                 
-                # Check for END signal
                 if "<END!>" in response:
                     self.last_execute = "Mission completed successfully"
                     await self.logger.log_event(
@@ -200,28 +370,38 @@ class AgentWorker:
                     await self._broadcast_status_update()
                     break
                 
-                # Extract and execute commands
                 commands = self._extract_commands(response)
                 
                 if commands:
-                    await self._execute_commands(commands)
+                    await self._execute_commands_with_coordination(commands)
                     await self._broadcast_status_update()
                 
-                # Extract and save findings
                 findings = self._extract_findings(response)
                 
                 if findings:
-                    await self._save_findings(findings)
+                    await self._save_findings_with_sharing(findings)
                 
-                # Share with other agents
                 await self._share_knowledge(response)
                 
-                # Delay for rate limiting and stealth
-                await self._apply_delay()
+                await self._apply_intelligent_delay()
                 
             except Exception as e:
                 error_str = str(e)
                 self.last_execute = f"Error: {error_str[:80]}"
+                
+                if "rate" in error_str.lower() or "429" in error_str:
+                    cooldown = await self.rate_limiter.handle_rate_limit_error(self.model_name)
+                    self.last_execute = f"Rate limit hit, cooling down {cooldown['cooldown_seconds']}s"
+                    await self.logger.log_event(
+                        f"Agent {self.agent_id} rate limit error",
+                        "rate_limit",
+                        cooldown
+                    )
+                    await asyncio.sleep(cooldown['cooldown_seconds'])
+                    continue
+                
+                await self.rate_limiter.record_request(self.model_name, success=False)
+                
                 await self.logger.log_event(
                     f"Agent {self.agent_id} iteration error: {error_str}",
                     "error",
@@ -229,10 +409,7 @@ class AgentWorker:
                 )
                 await self._broadcast_status_update()
                 
-                # Only stop on actual unauthorized errors (401), not payment errors which can be false positives
-                # The API connection is already verified, so skip overly aggressive error handling
                 if "401" in error_str and "Unauthorized" in error_str:
-                    # Stop agent only on real authentication errors
                     self.status = "error"
                     self.last_execute = f"Auth Error: {error_str[:60]}"
                     await self.logger.log_event(
@@ -242,7 +419,6 @@ class AgentWorker:
                     await self._broadcast_status_update()
                     break
                 
-                # Wait before retrying on temporary errors
                 await asyncio.sleep(3)
         
         if iteration >= max_iterations:
@@ -255,6 +431,246 @@ class AgentWorker:
         
         self.status = "completed"
         await self._broadcast_status_update()
+    
+    async def _build_user_message_with_collaboration(self, iteration: int) -> str:
+        """Build user message with collaboration data from other agents"""
+        messages = await self.agent_comm.get_messages(
+            self.agent_id, 
+            unread_only=True, 
+            limit=10
+        )
+        
+        knowledge = await self.knowledge_base.get_target_summary(self.target)
+        
+        message = f"Iteration {iteration}:\n\n"
+        
+        if messages:
+            message += "## Messages from other agents:\n"
+            for msg in messages[:5]:
+                msg_type = msg.message_type.value if hasattr(msg.message_type, 'value') else msg.message_type
+                message += f"- [{msg.from_agent}] ({msg_type}): {str(msg.content)[:150]}\n"
+            message += "\n"
+            
+            await self.agent_comm.clear_messages(
+                self.agent_id, 
+                [m.id for m in messages[:5]]
+            )
+        
+        if knowledge.get("ports"):
+            message += f"## Known open ports: {len(knowledge['ports'])} discovered\n"
+            for port_info in knowledge["ports"][:5]:
+                message += f"- Port {port_info.get('port')}: {port_info.get('service', 'unknown')}\n"
+            message += "\n"
+        
+        if knowledge.get("vulnerabilities"):
+            message += f"## Known vulnerabilities: {len(knowledge['vulnerabilities'])} found\n"
+            for vuln in knowledge["vulnerabilities"][:3]:
+                message += f"- [{vuln.get('severity')}] {vuln.get('type')}: {vuln.get('details', '')[:80]}\n"
+            message += "\n"
+        
+        if self.execution_history:
+            last_execution = self.execution_history[-1]
+            message += f"## Last command executed:\n{last_execution.get('command')}\n"
+            result_preview = last_execution.get('result', '')[:500]
+            message += f"Result: {result_preview}...\n\n"
+        
+        message += "What is your next action? Provide commands to execute or signal completion with <END!>"
+        
+        return message
+    
+    async def _execute_commands_with_coordination(self, commands: Dict[str, str]):
+        """Execute commands with coordination to avoid duplicate work"""
+        for key, command in commands.items():
+            if command.startswith("RUN "):
+                cmd = command[4:].strip()
+                
+                task_id = f"{self.target}:{cmd.split()[0]}:{hash(cmd) % 10000}"
+                
+                is_available = await self.agent_comm.is_task_available(task_id)
+                if not is_available:
+                    self.last_execute = f"Skipped (already done by team): {cmd[:50]}"
+                    await self.logger.log_event(
+                        f"Agent {self.agent_id} skipped duplicate task",
+                        "coordination",
+                        {"command": cmd[:100]}
+                    )
+                    continue
+                
+                claimed = await self.agent_comm.claim_task(self.agent_id, task_id)
+                if not claimed:
+                    self.last_execute = f"Task claimed by another agent: {cmd[:50]}"
+                    continue
+                
+                if is_dangerous_command(cmd):
+                    self.last_execute = f"BLOCKED: Dangerous command detected"
+                    await self.logger.log_event(
+                        f"Agent {self.agent_id} blocked dangerous command: {cmd}",
+                        "security_violation"
+                    )
+                    await self.agent_comm.complete_task(self.agent_id, task_id, {"blocked": True})
+                    continue
+                
+                if not is_tool_allowed(cmd):
+                    tool_name = cmd.split()[0]
+                    self.last_execute = f"BLOCKED: Tool '{tool_name}' not in allowed list"
+                    await self.logger.log_event(
+                        f"Agent {self.agent_id} blocked unauthorized tool: {tool_name}",
+                        "security_violation"
+                    )
+                    await self.agent_comm.complete_task(self.agent_id, task_id, {"blocked": True})
+                    continue
+                
+                self.last_execute = cmd
+                
+                await self.logger.log_event(
+                    f"Agent {self.agent_id} executing: {cmd}",
+                    "command"
+                )
+                
+                start_time = time.time()
+                result = await self.executor.execute(cmd)
+                exec_time = time.time() - start_time
+                
+                await self.memory.save_execution(
+                    self.agent_id, cmd, result, 
+                    success=True, execution_time=exec_time
+                )
+                
+                self.execution_history.append({
+                    "command": cmd,
+                    "result": result,
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+                await self._extract_and_share_discoveries(cmd, result)
+                
+                await self.agent_comm.complete_task(self.agent_id, task_id, {
+                    "command": cmd,
+                    "result_length": len(result)
+                })
+                
+                await self.logger.log_event(
+                    f"Agent {self.agent_id} completed: {cmd}",
+                    "command",
+                    {"result_length": len(result), "exec_time": exec_time}
+                )
+    
+    async def _extract_and_share_discoveries(self, command: str, result: str):
+        """Extract discoveries from command results and share with team"""
+        import re
+        
+        if "nmap" in command.lower():
+            port_pattern = r'(\d+)/(?:tcp|udp)\s+open\s+(\S+)'
+            for match in re.finditer(port_pattern, result):
+                port, service = match.groups()
+                added = await self.knowledge_base.add_port(
+                    self.target, int(port), service, agent_id=self.agent_id
+                )
+                if added:
+                    await self.agent_comm.share_discovery(
+                        self.agent_id,
+                        "port",
+                        f"{self.target}:{port}",
+                        {"port": port, "service": service}
+                    )
+        
+        if any(tool in command.lower() for tool in ["gobuster", "dirb", "ffuf"]):
+            path_pattern = r'(/\S+)\s+\(Status:\s*(\d+)'
+            for match in re.finditer(path_pattern, result):
+                path, status = match.groups()
+                await self.knowledge_base.add_directory(
+                    self.target, path, int(status), agent_id=self.agent_id
+                )
+        
+        if any(tool in command.lower() for tool in ["subfinder", "amass"]):
+            subdomain_pattern = r'([a-zA-Z0-9][-a-zA-Z0-9]*\.' + re.escape(self.target) + r')'
+            for match in re.finditer(subdomain_pattern, result):
+                subdomain = match.group(1)
+                await self.knowledge_base.add_subdomain(
+                    self.target, subdomain, agent_id=self.agent_id
+                )
+    
+    async def _save_findings_with_sharing(self, findings: List[str]):
+        """Save findings and share with other agents"""
+        for finding in findings:
+            severity = self._classify_severity(finding)
+            
+            finding_data = {
+                "agent_id": self.agent_id,
+                "agent_number": self.agent_number,
+                "content": finding,
+                "severity": severity,
+                "timestamp": datetime.now().isoformat(),
+                "target": self.target
+            }
+            
+            self.shared_knowledge["findings"].append(finding_data)
+            
+            await self.memory.save_finding(
+                self.agent_id, self.target, finding, 
+                severity=severity, category=self.category
+            )
+            
+            await self.agent_comm.share_finding(self.agent_id, finding_data)
+            
+            if severity in ["Critical", "High"]:
+                await self.knowledge_base.add_vulnerability(
+                    self.target, 
+                    "discovered",
+                    finding,
+                    severity=severity,
+                    agent_id=self.agent_id
+                )
+            
+            await self.logger.write_finding(self.agent_id, finding)
+            
+            await self.logger.log_event(
+                f"Agent {self.agent_id} finding: {finding[:100]}...",
+                "finding",
+                {"severity": severity}
+            )
+            
+            await self.agent_comm.update_capabilities(
+                self.agent_id,
+                findings_count=len([f for f in self.shared_knowledge.get("findings", []) 
+                                   if f["agent_id"] == self.agent_id])
+            )
+    
+    async def _apply_intelligent_delay(self):
+        """Apply intelligent delay based on throttling, stealth, and rate limits"""
+        from server.config import settings
+        
+        throttle_result = await self.throttler.check_and_throttle(self.agent_id)
+        throttle_delay = throttle_result.get("delay", 1.0)
+        
+        rate_status = self.rate_limiter.get_status(self.model_name)
+        rate_delay = rate_status.get("current_delay", 1.0)
+        
+        if self.stealth_mode:
+            base_delay = random.uniform(
+                settings.DEFAULT_DELAY_MIN * 2,
+                settings.DEFAULT_DELAY_MAX * 3
+            )
+        else:
+            base_delay = random.uniform(
+                settings.DEFAULT_DELAY_MIN,
+                settings.DEFAULT_DELAY_MAX
+            )
+        
+        final_delay = max(base_delay, throttle_delay, rate_delay)
+        
+        jitter = random.uniform(-0.3, 0.3) * final_delay
+        final_delay = max(0.5, final_delay + jitter)
+        
+        resources = throttle_result.get("resources", {})
+        await self.memory.record_resource_usage(
+            self.agent_id,
+            cpu=resources.get("cpu_percent", 0),
+            memory=resources.get("memory_percent", 0),
+            throttle=(throttle_result.get("throttle_level", "NONE") != "NONE")
+        )
+        
+        await asyncio.sleep(final_delay)
     
     def _build_system_prompt(self) -> str:
         """Build system prompt for AI model with available tools"""
