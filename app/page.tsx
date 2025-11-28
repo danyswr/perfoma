@@ -82,15 +82,32 @@ export default function Dashboard() {
   }, [config, customModelId, startMission, syncAgents])
 
   const handleTestApi = async () => {
+    const isCustomModel = config.modelName === "custom"
+    const modelId = isCustomModel ? customModelId : config.modelName
+    
+    if (!modelId || !modelId.trim()) {
+      setApiTestResult({ success: false, message: isCustomModel ? "Please enter a custom model ID" : "Please select a model" })
+      return
+    }
+    
     setTestingApi(true)
     setApiTestResult(null)
     try {
-      const modelId = config.modelName === "custom" ? customModelId : config.modelName
-      const response = await (api as any).testModel({ model: modelId })
+      const selectedModel = OPENROUTER_MODELS.find(m => m.id === config.modelName)
+      const providerName = isCustomModel ? "custom" : (selectedModel?.provider || "OpenRouter")
+      
+      const response = await api.testModel({ 
+        provider: providerName, 
+        model: modelId 
+      })
+      
       if (response.error) {
         setApiTestResult({ success: false, message: String(response.error) })
+      } else if (response.data?.status === "error") {
+        setApiTestResult({ success: false, message: response.data.message || "API test failed" })
       } else {
-        setApiTestResult({ success: true, message: "API connection successful!" })
+        const latencyInfo = response.data?.latency ? ` (${response.data.latency})` : ""
+        setApiTestResult({ success: true, message: `Connected to ${modelId}${latencyInfo}` })
       }
     } catch {
       setApiTestResult({ success: false, message: "Failed to connect to API" })
@@ -112,6 +129,44 @@ export default function Dashboard() {
       capabilities: { ...prev.capabilities, [key]: value }
     }))
   }
+
+  const selectAllStealth = (value: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      stealthOptions: {
+        proxyChain: value,
+        torRouting: value,
+        vpnChaining: value,
+        macSpoofing: value,
+        timestampSpoofing: value,
+        logWiping: value,
+        memoryScrambling: value,
+        secureDelete: value,
+      }
+    }))
+  }
+
+  const selectAllCapabilities = (value: boolean) => {
+    setConfig(prev => ({
+      ...prev,
+      capabilities: {
+        packetInjection: value,
+        arpSpoof: value,
+        mitm: value,
+        trafficHijack: value,
+        realtimeManipulation: value,
+        corsExploitation: value,
+        ssrfChaining: value,
+        deserializationExploit: value,
+        wafBypass: value,
+        bacTesting: value,
+        websocketHijack: value,
+      }
+    }))
+  }
+
+  const isAllStealthSelected = Object.values(config.stealthOptions).every(v => v)
+  const isAllCapabilitiesSelected = Object.values(config.capabilities).every(v => v)
 
   const getStatusColor = (value: number) => {
     if (value >= 80) return "text-red-500"
@@ -322,7 +377,13 @@ export default function Dashboard() {
                       />
                     )}
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={handleTestApi} disabled={testingApi} className="flex-1 h-8">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleTestApi} 
+                        disabled={testingApi || (config.modelName === "custom" && !customModelId.trim())} 
+                        className="flex-1 h-8"
+                      >
                         {testingApi ? "Testing..." : "Test API"}
                       </Button>
                       <Button variant="ghost" size="sm" asChild className="h-8">
@@ -406,7 +467,18 @@ export default function Dashboard() {
 
               {configTab === "stealth" && (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground mb-3">Advanced stealth capabilities</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-muted-foreground">Advanced stealth capabilities</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => selectAllStealth(!isAllStealthSelected)}
+                      className="h-6 text-xs"
+                    >
+                      <Check className="w-3 h-3 mr-1" />
+                      {isAllStealthSelected ? "Unselect All" : "Select All"}
+                    </Button>
+                  </div>
                   <StealthToggle label="ProxyChain" desc="Multi-hop proxy routing" checked={config.stealthOptions.proxyChain} onChange={(v) => updateStealthOption("proxyChain", v)} />
                   <StealthToggle label="Tor Routing" desc="Onion network routing" checked={config.stealthOptions.torRouting} onChange={(v) => updateStealthOption("torRouting", v)} />
                   <StealthToggle label="VPN Chaining" desc="Multi-VPN tunneling" checked={config.stealthOptions.vpnChaining} onChange={(v) => updateStealthOption("vpnChaining", v)} />
@@ -420,7 +492,18 @@ export default function Dashboard() {
 
               {configTab === "caps" && (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground mb-3">Agent capabilities</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-muted-foreground">Agent capabilities</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => selectAllCapabilities(!isAllCapabilitiesSelected)}
+                      className="h-6 text-xs"
+                    >
+                      <Check className="w-3 h-3 mr-1" />
+                      {isAllCapabilitiesSelected ? "Unselect All" : "Select All"}
+                    </Button>
+                  </div>
                   <CapToggle label="Packet Injection" checked={config.capabilities.packetInjection} onChange={(v) => updateCapability("packetInjection", v)} />
                   <CapToggle label="ARP Spoof" checked={config.capabilities.arpSpoof} onChange={(v) => updateCapability("arpSpoof", v)} />
                   <CapToggle label="MITM Attack" checked={config.capabilities.mitm} onChange={(v) => updateCapability("mitm", v)} />
