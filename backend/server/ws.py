@@ -2,6 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, Set
 import json
 import asyncio
+from datetime import datetime
 from agent import get_agent_manager
 from agent.queue import QueueManager
 
@@ -12,6 +13,8 @@ class ConnectionManager:
         self.active_connections: Set[WebSocket] = set()
         self.chat_mode: Dict[WebSocket, str] = {}  # "chat" or "queue"
         self._broadcast_task = None
+        self._history_broadcast_task = None
+        self._last_history_count = 0
         
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -24,7 +27,7 @@ class ConnectionManager:
             del self.chat_mode[websocket]
             
     async def broadcast(self, message: dict):
-        """Broadcast to all connected clients"""
+        """Broadcast to all connected clients immediately"""
         dead_connections = set()
         for connection in self.active_connections:
             try:
@@ -43,12 +46,14 @@ class ConnectionManager:
             self.disconnect(websocket)
     
     def start_broadcast_task(self):
-        """Start background broadcast task if not already running"""
+        """Start background broadcast tasks if not already running"""
         if self._broadcast_task is None or self._broadcast_task.done():
             self._broadcast_task = asyncio.create_task(self._broadcast_agent_updates())
+        if self._history_broadcast_task is None or self._history_broadcast_task.done():
+            self._history_broadcast_task = asyncio.create_task(self._broadcast_history_updates())
     
     async def _broadcast_agent_updates(self):
-        """Periodically broadcast agent status updates"""
+        """Periodically broadcast agent status updates - fast interval for real-time feel"""
         agent_mgr = get_agent_manager()
         while True:
             try:
@@ -56,11 +61,34 @@ class ConnectionManager:
                     agents = await agent_mgr.get_all_agents()
                     await self.broadcast({
                         "type": "agent_update",
-                        "agents": agents
+                        "agents": agents,
+                        "timestamp": datetime.now().isoformat()
                     })
             except Exception as e:
                 print(f"Broadcast error: {e}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)  # 500ms for smoother real-time updates
+    
+    async def _broadcast_history_updates(self):
+        """Periodically broadcast instruction history updates"""
+        agent_mgr = get_agent_manager()
+        while True:
+            try:
+                if self.active_connections:
+                    history = await agent_mgr.get_all_instruction_history()
+                    history_count = len(history)
+                    
+                    # Only broadcast if there's new history
+                    if history_count != self._last_history_count:
+                        self._last_history_count = history_count
+                        await self.broadcast({
+                            "type": "history_update",
+                            "history": history[-20:],  # Send last 20 entries
+                            "total": history_count,
+                            "timestamp": datetime.now().isoformat()
+                        })
+            except Exception as e:
+                print(f"History broadcast error: {e}")
+            await asyncio.sleep(0.5)  # 500ms for real-time history
 
 manager = ConnectionManager()
 queue_manager = QueueManager()

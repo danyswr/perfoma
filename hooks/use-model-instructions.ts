@@ -181,6 +181,45 @@ export function useModelInstructions() {
           }
         }
       }
+
+      // Handle real-time history updates from WebSocket
+      if (data.type === "history_update") {
+        const history = data.history as Array<{
+          instruction: string
+          instruction_type: string
+          timestamp: string
+          model_name: string
+          agent_id?: string
+        }> | undefined
+        
+        if (history && Array.isArray(history)) {
+          history.forEach((item) => {
+            const agentId = String(item.agent_id || "unknown")
+            const commandKey = `${agentId}-${item.instruction}`
+            
+            if (!processedCommands.current.has(commandKey)) {
+              processedCommands.current.add(commandKey)
+              
+              const newInstruction: ModelInstruction = {
+                id: generateUUID(),
+                agentId,
+                modelName: item.model_name || "AI Model",
+                instruction: item.instruction,
+                timestamp: new Date(item.timestamp).toLocaleTimeString(),
+                type: (item.instruction_type as ModelInstruction["type"]) || "command"
+              }
+              setInstructions(prev => {
+                // Add only if not already present
+                const exists = prev.some(p => 
+                  p.agentId === agentId && p.instruction === item.instruction
+                )
+                if (exists) return prev
+                return [newInstruction, ...prev].slice(0, MAX_INSTRUCTIONS)
+              })
+            }
+          })
+        }
+      }
     }
   }, [lastMessage])
 

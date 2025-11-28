@@ -33,6 +33,8 @@ export interface WebSocketMessage {
     | "agent_update"
     | "agent_status"
     | "model_instruction"
+    | "history_update"
+    | "mission_update"
     | "error"
   message?: string
   mode?: string

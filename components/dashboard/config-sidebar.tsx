@@ -29,8 +29,8 @@ import {
   AlertCircle,
   Loader2
 } from "lucide-react"
+import { api } from "@/lib/api"
 
-// --- MOCK DEFINITIONS FOR PREVIEW ---
 export interface MissionConfig {
   target: string
   category: "ip" | "domain" | "path"
@@ -40,20 +40,6 @@ export interface MissionConfig {
   modelName: string
   numAgents: number
 }
-
-const api = {
-  testModel: async (params: { provider: string; model: string }) => {
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    if (params.model === "error-test") {
-      return { data: null, error: { msg: "Failed to authenticate with provider" } }
-    }
-    return { 
-      data: { status: "success", latency: "145ms", message: "Connection successful" }, 
-      error: null 
-    }
-  }
-}
-// ------------------------------------
 
 interface ConfigSidebarProps {
   open: boolean

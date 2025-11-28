@@ -6,8 +6,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings(BaseSettings):
-    # API Configuration
+    # API Configuration - Multiple providers
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
     CUSTOM_MODEL_API_KEY: str = os.getenv("CUSTOM_MODEL_API_KEY", "")
     CUSTOM_MODEL_ENDPOINT: str = os.getenv("CUSTOM_MODEL_ENDPOINT", "")
     
