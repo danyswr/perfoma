@@ -47,6 +47,8 @@ export interface WebSocketMessage {
   last_command?: string
   execution_time?: number
   progress?: number
+  cpu_usage?: number
+  memory_usage?: number
   instruction?: string
   model_name?: string
   instruction_type?: string

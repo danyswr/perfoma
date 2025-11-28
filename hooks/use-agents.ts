@@ -107,30 +107,51 @@ export function useAgents() {
     }
     
     if (lastMessage?.type === "agent_update" && lastMessage.agents) {
-      setAgents(
-        lastMessage.agents.map((a: AgentUpdate, index: number) => ({
-          id: a.id,
-          displayId: `${index + 1}`,
-          status: (a.status || "idle") as "idle" | "running" | "paused" | "error",
-          lastCommand: a.last_command || "Awaiting command...",
-          executionTime: formatDuration(a.execution_time || 0),
-          lastExecuteTime: new Date().toLocaleTimeString(),
-          cpuUsage: a.cpu_usage || 0,
-          memoryUsage: a.memory_usage || 0,
-          progress: a.progress || 0,
-        })) as Agent[],
-      )
+      setAgents(prevAgents => {
+        return lastMessage.agents!.map((a: AgentUpdate, index: number) => {
+          const existing = prevAgents.find(p => p.id === a.id)
+          const hasExecutionTime = typeof a.execution_time === 'number'
+          const hasCpu = typeof a.cpu_usage === 'number'
+          const hasMem = typeof a.memory_usage === 'number'
+          
+          return {
+            id: a.id,
+            displayId: existing?.displayId || `${index + 1}`,
+            status: (a.status || existing?.status || "idle") as "idle" | "running" | "paused" | "error",
+            lastCommand: a.last_command || existing?.lastCommand || "Awaiting command...",
+            executionTime: hasExecutionTime ? formatDuration(a.execution_time) : (existing?.executionTime || "00:00"),
+            lastExecuteTime: existing?.lastExecuteTime,
+            cpuUsage: hasCpu ? a.cpu_usage : (existing?.cpuUsage ?? 0),
+            memoryUsage: hasMem ? a.memory_usage : (existing?.memoryUsage ?? 0),
+            progress: typeof a.progress === 'number' ? a.progress : (existing?.progress ?? 0),
+            target: existing?.target,
+            category: existing?.category,
+            currentTask: existing?.currentTask,
+            tasksCompleted: existing?.tasksCompleted,
+            findingsCount: existing?.findingsCount,
+            cpuHistory: existing?.cpuHistory,
+            memoryHistory: existing?.memoryHistory,
+          } as Agent
+        })
+      })
     }
     
     if (lastMessage?.type === "agent_status" && lastMessage.agent_id) {
       setAgents(prev => prev.map(agent => {
         if (agent.id === lastMessage.agent_id) {
+          const hasExecutionTime = typeof lastMessage.execution_time === 'number'
+          const hasCpu = typeof lastMessage.cpu_usage === 'number'
+          const hasMem = typeof lastMessage.memory_usage === 'number'
+          const hasProgress = typeof lastMessage.progress === 'number'
+          
           return {
             ...agent,
             status: (lastMessage.status || agent.status) as "idle" | "running" | "paused" | "error",
             lastCommand: lastMessage.last_command || agent.lastCommand,
-            executionTime: formatDuration(lastMessage.execution_time || 0),
-            progress: lastMessage.progress || agent.progress,
+            executionTime: hasExecutionTime ? formatDuration(lastMessage.execution_time!) : agent.executionTime,
+            cpuUsage: hasCpu ? lastMessage.cpu_usage! : agent.cpuUsage,
+            memoryUsage: hasMem ? lastMessage.memory_usage! : agent.memoryUsage,
+            progress: hasProgress ? lastMessage.progress! : agent.progress,
           }
         }
         return agent

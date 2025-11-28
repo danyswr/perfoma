@@ -9,6 +9,14 @@ from monitor.log import Logger
 import re
 import json
 
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+    psutil.cpu_percent(interval=None)
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    psutil = None
+
 class AgentWorker:
     """Individual autonomous agent worker"""
     
@@ -54,6 +62,9 @@ class AgentWorker:
         self.paused = False
         self.stopped = False
         
+        self._last_cpu_usage: Optional[float] = None
+        self._last_memory_usage: Optional[int] = None
+        
     async def start(self):
         """Start agent execution"""
         self.status = "running"
@@ -97,14 +108,22 @@ class AgentWorker:
         try:
             from server.ws import manager
             status = await self.get_status()
-            await manager.broadcast({
+            
+            message = {
                 "type": "agent_status",
                 "agent_id": self.agent_id,
                 "status": status["status"],
                 "last_command": status["last_command"],
                 "execution_time": status["execution_time"],
                 "progress": status["progress"]
-            })
+            }
+            
+            if "cpu_usage" in status:
+                message["cpu_usage"] = status["cpu_usage"]
+            if "memory_usage" in status:
+                message["memory_usage"] = status["memory_usage"]
+            
+            await manager.broadcast(message)
         except Exception:
             pass
     
@@ -509,6 +528,21 @@ Use <END!> when mission objectives are met.
     
     async def get_status(self) -> Dict:
         """Get current agent status"""
+        cpu_usage = self._last_cpu_usage
+        memory_usage = self._last_memory_usage
+        
+        if PSUTIL_AVAILABLE and psutil:
+            try:
+                new_cpu = psutil.cpu_percent(interval=None)
+                if new_cpu is not None:
+                    cpu_usage = new_cpu
+                    self._last_cpu_usage = cpu_usage
+                
+                memory = psutil.virtual_memory()
+                memory_usage = int(memory.used / (1024 * 1024))
+                self._last_memory_usage = memory_usage
+            except Exception:
+                pass
         
         elapsed_time = 0
         if self.start_time:
@@ -518,7 +552,7 @@ Use <END!> when mission objectives are met.
         if self.status == "completed":
             progress = 100
         
-        return {
+        result = {
             "id": self.agent_id,
             "agent_id": self.agent_id,
             "agent_number": self.agent_number,
@@ -535,10 +569,15 @@ Use <END!> when mission objectives are met.
             "findings_count": len([f for f in self.shared_knowledge.get("findings", []) if f["agent_id"] == self.agent_id]),
             "stealth_mode": self.stealth_mode,
             "aggressive_mode": self.aggressive_mode,
-            "cpu_usage": random.randint(5, 35),
-            "memory_usage": random.randint(50, 150),
             "progress": progress
         }
+        
+        if cpu_usage is not None:
+            result["cpu_usage"] = cpu_usage
+        if memory_usage is not None:
+            result["memory_usage"] = memory_usage
+        
+        return result
     
     async def pause(self):
         """Pause agent execution"""
