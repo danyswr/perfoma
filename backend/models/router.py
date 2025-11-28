@@ -67,17 +67,19 @@ class ModelRouter:
     ) -> str:
         """Generate response from specified model"""
         
-        if model_name not in self.AVAILABLE_MODELS:
-            raise ValueError(f"Model {model_name} not available")
-        
-        model_info = self.AVAILABLE_MODELS[model_name]
-        
-        if model_info["provider"] == "openrouter":
-            return await self._generate_openrouter(model_name, system_prompt, user_message, context)
-        elif model_info["provider"] == "custom":
-            return await self._generate_custom(system_prompt, user_message, context)
+        # Check if model is in predefined list
+        if model_name in self.AVAILABLE_MODELS:
+            model_info = self.AVAILABLE_MODELS[model_name]
+            
+            if model_info["provider"] == "openrouter":
+                return await self._generate_openrouter(model_name, system_prompt, user_message, context)
+            elif model_info["provider"] == "custom":
+                return await self._generate_custom(system_prompt, user_message, context)
+            else:
+                raise ValueError(f"Unknown provider: {model_info['provider']}")
         else:
-            raise ValueError(f"Unknown provider: {model_info['provider']}")
+            # Treat any unknown model as an OpenRouter model (supports custom/free models)
+            return await self._generate_openrouter(model_name, system_prompt, user_message, context)
     
     async def _generate_openrouter(
         self,
