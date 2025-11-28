@@ -213,5 +213,5 @@ echo ""
 
 echo -e "${BLUE}[*] Tailing logs (Ctrl+C to stop)...${NC}"
 
-# Tunggu proses
+# Tunggu prosesed
 wait $BACKEND_PID $FRONTEND_PID

@@ -83,7 +83,8 @@ export function LiveChat() {
   }
 
   const getErrorDisplay = (error: string) => {
-    if (error.includes("402") || error.includes("Payment Required")) {
+    // Only show 402 if it's an actual payment error from OpenRouter API
+    if (error.startsWith("OpenRouter 402") || (error.includes("402") && error.includes("Payment Required") && error.includes("insufficient credits"))) {
       return {
         title: "API Credits Required",
         message: "Please add credits to your OpenRouter account to continue using AI features.",
@@ -91,7 +92,7 @@ export function LiveChat() {
         url: "https://openrouter.ai/credits"
       }
     }
-    if (error.includes("Unauthorized") || error.includes("401")) {
+    if (error.includes("OpenRouter 401") || (error.includes("Unauthorized") && error.includes("API key"))) {
       return {
         title: "Invalid API Key",
         message: "Please check your OpenRouter API key configuration.",

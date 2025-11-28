@@ -151,6 +151,12 @@ class AgentWorker:
                 break
             
             iteration += 1
+            if iteration >= max_iterations:
+                self.last_execute = f"Completed {iteration} analysis iterations"
+                self.status = "completed"
+                await self._broadcast_status_update()
+                break
+            
             self.last_execute = f"Iteration {iteration}: Analyzing target..."
             await self._broadcast_status_update()
             
