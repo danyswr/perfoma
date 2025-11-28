@@ -225,7 +225,7 @@ class ModelRouter:
             message
         )
     
-    async def test_connection(self, provider: str, model: str, api_key: str = None) -> Dict[str, Any]:
+    async def test_connection(self, provider: str, model: str, api_key: Optional[str] = None) -> Dict[str, Any]:
         """Test connection to AI model"""
         import time
         
