@@ -4,6 +4,14 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-28**: UI Polish and Export Improvements
+  - Simplified agent cards to focus on execution time with live timer
+  - Created comprehensive agent detail modal with CPU/Memory monitoring charts (Recharts)
+  - Updated findings export to support JSON, CSV, and PDF formats (removed HTML)
+  - Added text report fallback when PDF generation is unavailable
+  - Enhanced FindingCard UI with severity-based colors, badges, and layout improvements
+  - Added CVSS score display and timestamp footer to findings
+
 - **2024-11-28**: Agent Card and Real-time Updates Improvements
   - Replaced progress bar with execution time display in AgentCard component
   - Updated AgentCard styling to match ResourceMonitor with CPU/Memory bars
