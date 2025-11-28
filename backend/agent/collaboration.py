@@ -139,13 +139,25 @@ class InterAgentCommunication:
     async def get_messages(self, agent_id: str, 
                           message_types: List[MessageType] = None,
                           min_priority: Priority = None,
-                          limit: int = 50) -> List[AgentMessage]:
-        """Get pending messages for an agent"""
+                          limit: int = 50,
+                          unread_only: bool = False) -> List[AgentMessage]:
+        """Get pending messages for an agent
+        
+        Args:
+            agent_id: The agent to get messages for
+            message_types: Optional filter by message types
+            min_priority: Optional minimum priority filter
+            limit: Maximum number of messages to return
+            unread_only: If True, only return unacknowledged messages
+        """
         async with self._lock:
             if agent_id not in self._message_queue:
                 return []
             
             messages = self._message_queue[agent_id].copy()
+            
+            if unread_only:
+                messages = [m for m in messages if not m.ack_received]
             
             if message_types:
                 messages = [m for m in messages if m.message_type in message_types]
