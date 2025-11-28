@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from server.api import router as api_router
 from server.ws import router as ws_router
+from server.tools_api import router as tools_router
 from server.config import settings
 from monitor.log import setup_logging
 import os
@@ -32,6 +33,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(api_router, prefix="/api", tags=["api"])
+app.include_router(tools_router, prefix="/api", tags=["tools"])
 app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
 @app.on_event("startup")

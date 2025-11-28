@@ -4,6 +4,14 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-28**: Tools System & Command Validation
+  - Created comprehensive tools registry with 1000+ allowed security tools across 25 categories
+  - Agent now validates all commands against allowed tools list before execution
+  - Implemented dangerous command blocklist (rm -rf, mkfs, chmod 777 /, etc.)
+  - System prompt now lists available tools by category for agent guidance
+  - Tools organized by: network_recon, web_scanning, vuln_scanning, exploitation, cloud_security, AD/Kerberos, containers, etc.
+  - Each agent receives dynamic system prompt showing available tools relevant to their mission
+
 - **2024-11-28**: Instruction History, Real-time Timer & API Error Fix
   - Added Instruction History panel in Agent Detail Dialog showing executed AI instructions
   - Instruction history API endpoints: `/api/agents/{id}/history` (per-agent) and `/api/history` (global)
@@ -11,7 +19,6 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
   - Verified OpenRouter API connection - returns success with 859ms latency
   - **Fixed false 402 "Payment Required" error** - Removed overly aggressive error handling that triggered false positives
   - API is fully functional and processing requests without payment issues
-  - Timer remains functional and updates in real-time for running agents
 
 - **2024-11-28**: UI Responsiveness and Layout Improvements
   - Fixed Network resource display to auto-format large values (KB/s → MB/s → GB/s)

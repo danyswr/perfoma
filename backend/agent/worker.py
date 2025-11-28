@@ -6,6 +6,7 @@ from datetime import datetime
 from agent.executor import CommandExecutor
 from models.router import ModelRouter
 from monitor.log import Logger
+from tools import is_tool_allowed, is_dangerous_command, get_allowed_tools_by_category
 import re
 import json
 
@@ -250,13 +251,21 @@ class AgentWorker:
         await self._broadcast_status_update()
     
     def _build_system_prompt(self) -> str:
-        """Build system prompt for AI model"""
+        """Build system prompt for AI model with available tools"""
         
         mode_str = "Stealth (evade detection)" if self.stealth_mode else "Aggressive (thorough scanning)" if self.aggressive_mode else "Normal"
         
         custom_section = ""
         if self.custom_instruction:
             custom_section = f"\n## CUSTOM INSTRUCTION\n{self.custom_instruction}\n"
+        
+        # Build available tools section
+        tools_by_category = get_allowed_tools_by_category()
+        tools_section = "## AVAILABLE TOOLS BY CATEGORY\n\n"
+        for category, tools in tools_by_category.items():
+            category_display = category.replace("_", " ").title()
+            tools_list = ", ".join(sorted(list(tools))[:10])  # Show first 10 per category
+            tools_section += f"### {category_display}\n{tools_list}{'... and more' if len(tools) > 10 else ''}\n\n"
         
         prompt = f"""You are an elite autonomous cyber security agent (Agent #{self.agent_number}) conducting advanced security assessment.
 
@@ -269,6 +278,7 @@ Mode: {mode_str}
 ### 1. Command Execution
 Execute security tools using: RUN <command>
 Example: RUN nmap -sV -sC {self.target}
+ALL commands must use tools from the AVAILABLE TOOLS list below.
 
 ### 2. Finding Documentation
 Save findings using: <write>content</write>
@@ -277,74 +287,26 @@ Include severity: Critical/High/Medium/Low/Info
 ### 3. Completion Signal
 Use <END!> when mission objectives are met.
 
-## ADVANCED EXPLOIT MODULES
-
-### CORS Exploitation
-- Test for CORS misconfigurations
-- RUN curl -H "Origin: https://evil.com" -I {self.target}
-
-### SSRF Chaining
-- Discover and chain SSRF vulnerabilities
-- Test cloud metadata endpoints (AWS, GCP, Azure)
-- Generate gopher/dict protocol payloads
-
-### Deserialization Exploits
-- Generate payloads for Java, PHP, Python, .NET, Ruby, Node.js
-- Auto-detect vulnerable frameworks
-- Chain gadgets for RCE
-
-### WAF/Cloudflare Bypass
-- Auto-detect WAF type (Cloudflare, Akamai, AWS WAF, etc.)
-- Apply encoding, unicode, chunked bypasses
-- Test origin IP discovery methods
-
-### Broken Access Control
-- IDOR testing with payload chaining
-- HTTP method bypass (GET/POST/PUT override)
-- Path traversal bypass techniques
-- Privilege escalation testing
-
-### WebSocket Hijacking
-- Discover WebSocket endpoints
-- Test Cross-Site WebSocket Hijacking (CSWSH)
-- Authentication bypass testing
-- Message injection testing
-
-### Supply Chain Attacks
-- Dependency confusion checker
-- Typosquatting package detection
-- Repository takeover analysis
-- Malicious package simulation
-
-## STANDARD SECURITY TOOLS
-- nmap: Network/port scanning (use -sV -sC for version/script detection)
-- nikto: Web server vulnerability scanning
-- sqlmap: SQL injection testing (use --batch for non-interactive)
-- dirb/gobuster: Directory enumeration
-- whatweb: Technology fingerprinting
-- curl: HTTP testing with custom headers
-- ffuf: Fuzzing web applications
-- nuclei: Vulnerability scanning with templates
+{tools_section}
 
 ## METHODOLOGY
 
-1. **Reconnaissance**: Identify attack surface, technologies, entry points
-2. **Vulnerability Discovery**: Use appropriate tools and exploit modules
-3. **Exploitation Testing**: Validate findings with proof-of-concept
-4. **Documentation**: Record all findings with severity and evidence
-5. **Chaining**: Combine vulnerabilities for maximum impact
+1. **Reconnaissance**: Use network_recon tools (nmap, amass, subfinder) to map attack surface
+2. **Enumeration**: Use web_scanning tools (nikto, gobuster, httpx) to discover services
+3. **Vulnerability Discovery**: Use vuln_scanning tools (trivy, nuclei) to identify issues
+4. **Exploitation Testing**: Use exploitation tools to validate findings
+5. **Documentation**: Record all findings with <write> tags
+6. **Collaboration**: Share critical discoveries with other agents
 {custom_section}
-## COLLABORATION
-- Check shared findings from other agents
-- Avoid duplicate work
-- Share critical discoveries immediately
 
 ## RULES
+- ONLY use tools from the AVAILABLE TOOLS list above
 - Be methodical and thorough
 - Document ALL findings with <write> tags
-- Include severity classification
+- Include severity classification (Critical/High/Medium/Low/Info)
 - Provide exploitation proof when possible
 - Signal <END!> only when objectives are fully met
+- Never use forbidden commands (rm -rf, mkfs, chmod 777 /, etc.)
 """
         
         return prompt
@@ -417,11 +379,30 @@ Use <END!> when mission objectives are met.
         return [m.strip() for m in matches]
     
     async def _execute_commands(self, commands: Dict[str, str]):
-        """Execute extracted commands"""
+        """Execute extracted commands with validation"""
         
         for key, command in commands.items():
             if command.startswith("RUN "):
                 cmd = command[4:].strip()  # Remove "RUN " prefix
+                
+                # Validate command safety
+                if is_dangerous_command(cmd):
+                    self.last_execute = f"⚠️ BLOCKED: Dangerous command detected"
+                    await self.logger.log_event(
+                        f"Agent {self.agent_id} blocked dangerous command: {cmd}",
+                        "security_violation"
+                    )
+                    continue
+                
+                # Validate tool is allowed
+                if not is_tool_allowed(cmd):
+                    tool_name = cmd.split()[0]
+                    self.last_execute = f"⚠️ BLOCKED: Tool '{tool_name}' not in allowed list"
+                    await self.logger.log_event(
+                        f"Agent {self.agent_id} blocked unauthorized tool: {tool_name}",
+                        "security_violation"
+                    )
+                    continue
                 
                 self.last_execute = cmd
                 
