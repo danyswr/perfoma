@@ -15,12 +15,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import {
-  Cpu, MemoryStick, Wifi, Activity, Bot, Play, Shield, Zap, Target,
+  Bot, Play, Shield, Zap, Target,
   Globe, FolderOpen, MessageSquare, X, Download, FileJson, FileText, FileSpreadsheet,
-  ChevronRight, AlertTriangle, Settings, Terminal, Clock, HardDrive,
+  ChevronRight, AlertTriangle, Settings, Terminal, Clock,
   MoreVertical, Pause, Trash2, ExternalLink, Check, Network, Eye, EyeOff,
-  RefreshCw, Send, User, ListOrdered
+  RefreshCw, Send, User, ListOrdered, PanelLeft
 } from "lucide-react"
+import { ResourceMonitor } from "@/components/dashboard/resource-monitor"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useMission } from "@/hooks/use-mission"
 import { useAgents } from "@/hooks/use-agents"
@@ -56,6 +57,7 @@ export default function Dashboard() {
   const [customModelId, setCustomModelId] = useState("")
   const [testingApi, setTestingApi] = useState(false)
   const [apiTestResult, setApiTestResult] = useState<{success: boolean, message: string} | null>(null)
+  const [apiTestPassed, setApiTestPassed] = useState(false)
 
   useEffect(() => {
     const checkHealth = async () => {
@@ -87,11 +89,13 @@ export default function Dashboard() {
     
     if (!modelId || !modelId.trim()) {
       setApiTestResult({ success: false, message: isCustomModel ? "Please enter a custom model ID" : "Please select a model" })
+      setApiTestPassed(false)
       return
     }
     
     setTestingApi(true)
     setApiTestResult(null)
+    setApiTestPassed(false)
     try {
       const selectedModel = OPENROUTER_MODELS.find(m => m.id === config.modelName)
       const providerName = isCustomModel ? "custom" : (selectedModel?.provider || "OpenRouter")
@@ -103,14 +107,18 @@ export default function Dashboard() {
       
       if (response.error) {
         setApiTestResult({ success: false, message: String(response.error) })
+        setApiTestPassed(false)
       } else if (response.data?.status === "error") {
         setApiTestResult({ success: false, message: response.data.message || "API test failed" })
+        setApiTestPassed(false)
       } else {
         const latencyInfo = response.data?.latency ? ` (${response.data.latency})` : ""
         setApiTestResult({ success: true, message: `Connected to ${modelId}${latencyInfo}` })
+        setApiTestPassed(true)
       }
     } catch {
       setApiTestResult({ success: false, message: "Failed to connect to API" })
+      setApiTestPassed(false)
     } finally {
       setTestingApi(false)
     }
@@ -168,12 +176,6 @@ export default function Dashboard() {
   const isAllStealthSelected = Object.values(config.stealthOptions).every(v => v)
   const isAllCapabilitiesSelected = Object.values(config.capabilities).every(v => v)
 
-  const getStatusColor = (value: number) => {
-    if (value >= 80) return "text-red-500"
-    if (value >= 60) return "text-yellow-500"
-    return "text-emerald-500"
-  }
-
   return (
     <div className="h-screen w-screen overflow-hidden bg-background flex flex-col">
       <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
@@ -199,13 +201,10 @@ export default function Dashboard() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
+        <ChatSidebar open={chatOpen} onToggle={() => setChatOpen(!chatOpen)} />
+        
         <div className="flex-1 p-4 flex flex-col gap-4 overflow-hidden">
-          <div className="flex gap-4 h-24 shrink-0">
-            <ResourceCard icon={Cpu} label="CPU" value={resources.cpu} unit="%" color={getStatusColor(resources.cpu)} />
-            <ResourceCard icon={MemoryStick} label="RAM" value={resources.memory} unit="%" color={getStatusColor(resources.memory)} />
-            <ResourceCard icon={HardDrive} label="Disk" value={resources.disk} unit="%" color={getStatusColor(resources.disk)} />
-            <ResourceCard icon={Wifi} label="Network" value={resources.network} unit="KB/s" color="text-blue-500" />
-          </div>
+          <ResourceMonitor />
 
           <div className="flex-1 flex gap-4 overflow-hidden">
             <Card className="flex-1 flex flex-col overflow-hidden">
@@ -520,10 +519,13 @@ export default function Dashboard() {
             </div>
           </ScrollArea>
 
-          <div className="p-4 border-t border-border shrink-0">
+          <div className="p-4 border-t border-border shrink-0 space-y-2">
+            {!apiTestPassed && (
+              <p className="text-xs text-yellow-500 text-center">Test API first before starting mission</p>
+            )}
             <Button
               onClick={handleStartMission}
-              disabled={!config.target || mission.active || backendStatus !== "online"}
+              disabled={!config.target || mission.active || backendStatus !== "online" || !apiTestPassed}
               className="w-full gap-2"
             >
               <Play className="w-4 h-4" />
@@ -533,15 +535,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <Button
-        onClick={() => setChatOpen(true)}
-        className="fixed bottom-6 left-6 h-12 w-12 rounded-full shadow-lg"
-        size="icon"
-      >
-        <MessageSquare className="w-5 h-5" />
-      </Button>
-
-      <ChatDialog open={chatOpen} onClose={() => setChatOpen(false)} />
 
       <Dialog open={!!selectedAgent} onOpenChange={() => setSelectedAgent(null)}>
         <DialogContent className="max-w-lg">
@@ -584,21 +577,6 @@ export default function Dashboard() {
   )
 }
 
-function ResourceCard({ icon: Icon, label, value, unit, color }: { icon: any; label: string; value: number; unit: string; color: string }) {
-  return (
-    <Card className="flex-1">
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-muted">
-          <Icon className={`w-5 h-5 ${color}`} />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className={`text-xl font-bold ${color}`}>{value}<span className="text-sm font-normal">{unit}</span></p>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
 function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Agent; onDetail: () => void; onPause: () => void; onResume: () => void; onRemove: () => void }) {
   const statusColors = {
@@ -690,7 +668,7 @@ function CapToggle({ label, checked, onChange }: { label: string; checked: boole
   )
 }
 
-function ChatDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const [input, setInput] = useState("")
   const { messages, sendMessage, sendQueueCommand, mode, setMode, connected } = useChat()
 
@@ -707,84 +685,108 @@ function ChatDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
     setInput("")
   }
 
-  if (!open) return null
-
   return (
-    <div className="fixed bottom-24 left-6 w-96 h-[500px] bg-background border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden z-50">
-      <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="w-5 h-5 text-primary" />
-          <span className="font-semibold">Live Chat</span>
-          {connected ? (
-            <Badge variant="default" className="text-xs">Connected</Badge>
-          ) : (
-            <Badge variant="destructive" className="text-xs">Disconnected</Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          <Button
-            variant={mode === "chat" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setMode("chat")}
-            className="h-7 text-xs"
-          >
-            Chat
-          </Button>
-          <Button
-            variant={mode === "queue" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setMode("queue")}
-            className="h-7 text-xs"
-          >
-            Queue
-          </Button>
-          <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7">
-            <X className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
-      <ScrollArea className="flex-1 p-3">
-        {messages.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <Bot className="w-8 h-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Start a conversation</p>
-            <div className="mt-4 text-left text-xs space-y-1">
-              <p><code className="bg-muted px-1 rounded">/chat</code> - Chat mode</p>
-              <p><code className="bg-muted px-1 rounded">/queue list</code> - View queue</p>
-              <p><code className="bg-muted px-1 rounded">/queue add</code> - Add command</p>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user" ? "bg-primary/20" : "bg-muted"}`}>
-                  {msg.role === "user" ? <User className="w-3 h-3 text-primary" /> : <Bot className="w-3 h-3" />}
-                </div>
-                <div className={`max-w-[80%] rounded-lg px-3 py-2 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                  <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
-                  <p className="text-[10px] opacity-70 mt-1">{msg.timestamp}</p>
-                </div>
-              </div>
-            ))}
+    <div className={`h-full border-r border-border flex flex-col transition-all duration-300 ${open ? "w-80" : "w-12"}`}>
+      <div className="p-2 border-b border-border flex items-center justify-between shrink-0">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onToggle}
+          className="h-8 w-8"
+        >
+          {open ? <X className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
+        </Button>
+        {open && (
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm">Live Chat</span>
+            {connected ? (
+              <Badge variant="default" className="text-xs">Online</Badge>
+            ) : (
+              <Badge variant="destructive" className="text-xs">Offline</Badge>
+            )}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
-      <form onSubmit={handleSubmit} className="p-3 border-t border-border shrink-0">
-        <div className="flex gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={mode === "chat" ? "Type a message..." : "/queue command..."}
-            className="flex-1 h-9"
-          />
-          <Button type="submit" size="icon" disabled={!connected} className="h-9 w-9">
-            <Send className="w-4 h-4" />
+      {open ? (
+        <>
+          <div className="px-2 py-1 border-b border-border flex gap-1 shrink-0">
+            <Button
+              variant={mode === "chat" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setMode("chat")}
+              className="h-7 text-xs flex-1"
+            >
+              Chat
+            </Button>
+            <Button
+              variant={mode === "queue" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setMode("queue")}
+              className="h-7 text-xs flex-1"
+            >
+              Queue
+            </Button>
+          </div>
+
+          <ScrollArea className="flex-1 p-3">
+            {messages.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Bot className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Start a conversation</p>
+                <div className="mt-4 text-left text-xs space-y-1">
+                  <p><code className="bg-muted px-1 rounded">/chat</code> - Chat mode</p>
+                  <p><code className="bg-muted px-1 rounded">/queue list</code> - View queue</p>
+                  <p><code className="bg-muted px-1 rounded">/queue add</code> - Add command</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user" ? "bg-primary/20" : "bg-muted"}`}>
+                      {msg.role === "user" ? <User className="w-3 h-3 text-primary" /> : <Bot className="w-3 h-3" />}
+                    </div>
+                    <div className={`max-w-[80%] rounded-lg px-3 py-2 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                      <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
+                      <p className="text-[10px] opacity-70 mt-1">{msg.timestamp}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+
+          <form onSubmit={handleSubmit} className="p-3 border-t border-border shrink-0">
+            <div className="flex gap-2">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={mode === "chat" ? "Type a message..." : "/queue command..."}
+                className="flex-1 h-9"
+              />
+              <Button type="submit" size="icon" disabled={!connected} className="h-9 w-9">
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </form>
+        </>
+      ) : (
+        <div className="flex-1 flex flex-col items-center py-4 gap-3">
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={onToggle}
+            className="h-8 w-8"
+            title="Open Chat"
+          >
+            <Terminal className="w-4 h-4" />
           </Button>
+          {connected && (
+            <div className="w-2 h-2 rounded-full bg-emerald-500" title="Connected" />
+          )}
         </div>
-      </form>
+      )}
     </div>
   )
 }
