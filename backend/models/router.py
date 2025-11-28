@@ -515,12 +515,21 @@ class ModelRouter:
             raise Exception(f"Custom model error: {str(e)}")
     
     async def chat(self, message: str) -> str:
-        """Simple chat interface (uses default model)"""
-        return await self.generate(
-            "anthropic/claude-3.5-sonnet",
-            "You are a helpful cyber security AI assistant.",
-            message
-        )
+        """Simple chat interface - routes through configured provider"""
+        # Use GPT-4 Turbo as default since we're routing through OpenRouter
+        model = "openai/gpt-4-turbo"
+        try:
+            return await self.generate(
+                model,
+                "You are a helpful cyber security AI assistant.",
+                message
+            )
+        except Exception as e:
+            # Re-raise with better context
+            error_str = str(e)
+            if "OpenRouter" in error_str or "402" in error_str or "401" in error_str:
+                raise Exception(error_str)  # OpenRouter errors are already detailed
+            raise Exception(f"Chat generation failed: {error_str}")
     
     async def test_connection(self, provider: str, model: str, api_key: Optional[str] = None) -> Dict[str, Any]:
         """Test connection to AI model using the appropriate provider"""
