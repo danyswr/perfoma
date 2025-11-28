@@ -7,8 +7,8 @@ class ModelRouter:
     """Router for managing different AI models with improved error handling"""
     
     AVAILABLE_MODELS = {
-        "openai/gpt-4-turbo": {
-            "name": "GPT-4 Turbo",
+        "openai/gpt-4.1-mini": {
+            "name": "gpt-4.1-mini",
             "provider": "openrouter",
             "context": 128000
         },

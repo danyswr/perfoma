@@ -9,7 +9,7 @@ from server.config import settings
 class OpenRouterModel:
     """OpenRouter model client with enhanced error handling"""
     
-    def __init__(self, api_key: str, model: str = "openai/gpt-4-turbo"):
+    def __init__(self, api_key: str, model: str = "openai/gpt-4.1-mini"):
         self.api_key = api_key.strip() if api_key else ""
         self.model = model
         self.request_count = 0

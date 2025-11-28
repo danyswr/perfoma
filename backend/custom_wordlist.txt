@@ -1,0 +1,10 @@
+admin
+login
+uploads
+images
+data
+includes
+backup
+config
+sql
+test
