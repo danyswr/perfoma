@@ -37,7 +37,7 @@ class AgentWorker:
         self.shared_knowledge = shared_knowledge
         self.logger = logger
         
-        self.executor = CommandExecutor(agent_id, stealth_mode, stealth_config)
+        self.executor = CommandExecutor(agent_id, stealth_mode, stealth_config, target)
         self.model_router = ModelRouter()
         
         self.status = "idle"  # idle, running, paused, completed, error

@@ -2,7 +2,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, Set
 import json
 import asyncio
-from agent.manager import AgentManager
+from agent import get_agent_manager
 from agent.queue import QueueManager
 
 router = APIRouter()
@@ -11,6 +11,7 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
         self.chat_mode: Dict[WebSocket, str] = {}  # "chat" or "queue"
+        self._broadcast_task = None
         
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -31,7 +32,6 @@ class ConnectionManager:
             except:
                 dead_connections.add(connection)
         
-        # Clean up dead connections
         for conn in dead_connections:
             self.disconnect(conn)
     
@@ -41,17 +41,38 @@ class ConnectionManager:
             await websocket.send_json(message)
         except:
             self.disconnect(websocket)
+    
+    def start_broadcast_task(self):
+        """Start background broadcast task if not already running"""
+        if self._broadcast_task is None or self._broadcast_task.done():
+            self._broadcast_task = asyncio.create_task(self._broadcast_agent_updates())
+    
+    async def _broadcast_agent_updates(self):
+        """Periodically broadcast agent status updates"""
+        agent_mgr = get_agent_manager()
+        while True:
+            try:
+                if self.active_connections:
+                    agents = await agent_mgr.get_all_agents()
+                    await self.broadcast({
+                        "type": "agent_update",
+                        "agents": agents
+                    })
+            except Exception as e:
+                print(f"Broadcast error: {e}")
+            await asyncio.sleep(1)
 
 manager = ConnectionManager()
-agent_manager = AgentManager()
 queue_manager = QueueManager()
 
 @router.websocket("/live")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
+    manager.start_broadcast_task()
+    
+    agent_mgr = get_agent_manager()
     
     try:
-        # Send initial connection message
         await manager.send_personal({
             "type": "system",
             "message": "Connected to Autonomous CyberSec AI Agent System",
@@ -66,18 +87,15 @@ async def websocket_endpoint(websocket: WebSocket):
         }, websocket)
         
         while True:
-            # Receive message from client
             data = await websocket.receive_text()
             message = json.loads(data)
             
-            # Handle different message types
             if message.get("type") == "command":
                 await handle_command(message.get("content", ""), websocket)
             elif message.get("type") == "chat":
                 await handle_chat(message.get("content", ""), websocket)
             elif message.get("type") == "get_updates":
-                # Send agent updates
-                agents = await agent_manager.get_all_agents()
+                agents = await agent_mgr.get_all_agents()
                 await manager.send_personal({
                     "type": "agent_update",
                     "agents": agents
@@ -193,17 +211,3 @@ async def handle_chat(content: str, websocket: WebSocket):
             "message": f"Chat error: {str(e)}"
         }, websocket)
 
-# Background task to broadcast agent updates
-async def broadcast_agent_updates():
-    """Periodically broadcast agent status updates"""
-    while True:
-        try:
-            agents = await agent_manager.get_all_agents()
-            await manager.broadcast({
-                "type": "agent_update",
-                "agents": agents
-            })
-        except Exception as e:
-            print(f"Broadcast error: {e}")
-        
-        await asyncio.sleep(2)  # Update every 2 seconds

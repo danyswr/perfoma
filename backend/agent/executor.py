@@ -2,7 +2,11 @@ import asyncio
 import subprocess
 import random
 import time
-from typing import Optional
+import os
+import platform
+import sys
+from typing import Optional, Dict
+from datetime import datetime
 from server.config import settings
 from stealth.user_agent import UserAgentRotator
 from stealth.proxy import ProxyChain
@@ -11,10 +15,11 @@ from stealth.obfuscation import TrafficObfuscator
 from stealth.fingerprint import FingerprintRandomizer
 
 class CommandExecutor:
-    """Executes security tool commands with advanced stealth capabilities"""
+    """Executes security tool commands with advanced stealth capabilities and cross-platform support"""
     
-    def __init__(self, agent_id: str, stealth_mode: bool = False, stealth_config: dict = None):
+    def __init__(self, agent_id: str, stealth_mode: bool = False, stealth_config: dict = None, target: str = ""):
         self.agent_id = agent_id
+        self.target = target
         self.stealth_mode = stealth_mode
         self.stealth_config = stealth_config or {}
         
@@ -34,7 +39,31 @@ class CommandExecutor:
         
         self.last_execution_time = 0
         self.error_count = 0
+        self.execution_count = 0
         
+        self.is_windows = platform.system().lower() == "windows"
+        self.log_dir = self._create_log_directory()
+        
+    def _create_log_directory(self) -> str:
+        """Create log directory for this agent and target"""
+        safe_target = "".join(c if c.isalnum() or c in "._-" else "_" for c in self.target[:50])
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        log_dir = os.path.join("logs", "agents", self.agent_id, f"{safe_target}_{timestamp}")
+        os.makedirs(log_dir, exist_ok=True)
+        
+        return log_dir
+    
+    def _get_shell_command(self, command: str) -> tuple:
+        """Get the appropriate shell command based on the platform"""
+        if self.is_windows:
+            return (
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
+                False
+            )
+        else:
+            return (command, True)
+    
     async def execute(self, command: str) -> str:
         """Execute command with advanced stealth and return output"""
         
@@ -44,146 +73,184 @@ class CommandExecutor:
         if self.stealth_mode:
             command = self._apply_advanced_stealth(command)
         
+        self.execution_count += 1
+        log_file = os.path.join(self.log_dir, f"exec_{self.execution_count:04d}.log")
+        
         try:
-            # Execute command with timeout
-            process = await asyncio.create_subprocess_shell(
-                command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                shell=True
-            )
+            shell_cmd, use_shell = self._get_shell_command(command)
             
-            # Wait for completion with timeout
+            if use_shell:
+                process = await asyncio.create_subprocess_shell(
+                    shell_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+            else:
+                process = await asyncio.create_subprocess_exec(
+                    *shell_cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+            
             try:
                 stdout, stderr = await asyncio.wait_for(
                     process.communicate(),
-                    timeout=600.0  # 10 minute timeout
+                    timeout=600.0
                 )
                 
                 output = stdout.decode('utf-8', errors='ignore')
                 error = stderr.decode('utf-8', errors='ignore')
                 
-                self.error_count = 0  # Reset error count on success
+                self.error_count = 0
                 self.last_execution_time = time.time()
                 
-                if error:
+                log_content = self._format_log(command, output, error)
+                await self._write_log(log_file, log_content)
+                
+                if error and not output:
                     return f"Output:\n{output}\n\nErrors:\n{error}"
-                return output
+                return output if output else error
                 
             except asyncio.TimeoutError:
                 process.kill()
-                return "Command execution timed out after 10 minutes"
+                timeout_msg = "Command execution timed out after 10 minutes"
+                await self._write_log(log_file, self._format_log(command, "", timeout_msg))
+                return timeout_msg
                 
         except Exception as e:
             self.error_count += 1
-            return f"Execution error: {str(e)}"
+            error_msg = f"Execution error: {str(e)}"
+            await self._write_log(log_file, self._format_log(command, "", error_msg))
+            return error_msg
+    
+    def _format_log(self, command: str, output: str, error: str) -> str:
+        """Format log content"""
+        timestamp = datetime.now().isoformat()
+        log_lines = [
+            f"=" * 80,
+            f"Timestamp: {timestamp}",
+            f"Agent: {self.agent_id}",
+            f"Target: {self.target}",
+            f"Command: {command}",
+            f"Platform: {'Windows (PowerShell)' if self.is_windows else 'Linux (Bash)'}",
+            f"=" * 80,
+            f"\n--- STDOUT ---\n{output}" if output else "",
+            f"\n--- STDERR ---\n{error}" if error else "",
+            f"\n{'=' * 80}\n"
+        ]
+        return "\n".join(line for line in log_lines if line)
+    
+    async def _write_log(self, log_file: str, content: str):
+        """Write log content to file asynchronously"""
+        try:
+            with open(log_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+        except Exception as e:
+            print(f"Failed to write log: {e}")
+    
+    async def execute_background(self, command: str) -> str:
+        """Execute command in background without waiting"""
+        try:
+            shell_cmd, use_shell = self._get_shell_command(command)
+            
+            if use_shell:
+                process = await asyncio.create_subprocess_shell(
+                    shell_cmd,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                    start_new_session=True
+                )
+            else:
+                process = await asyncio.create_subprocess_exec(
+                    *shell_cmd,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                    start_new_session=True
+                )
+            
+            return f"Background process started with PID: {process.pid}"
+            
+        except Exception as e:
+            return f"Failed to start background process: {str(e)}"
     
     def _apply_advanced_stealth(self, command: str) -> str:
         """Apply comprehensive stealth modifications to command"""
         
         user_agent = self.user_agent_rotator.get_user_agent()
-        
         proxy = self.proxy_chain.get_proxy() if self.proxy_chain.working_proxies else None
         
-        # HTTP-based tools: nikto, dirb, curl, wget, whatweb
         if any(tool in command.lower() for tool in ['nikto', 'dirb', 'curl', 'wget', 'whatweb']):
-            # User agent
             if 'nikto' in command.lower():
                 if '-useragent' not in command.lower():
                     command += f' -useragent "{user_agent}"'
-                # Add delay between requests
                 if '-Pause' not in command:
                     pause = random.randint(2, 5)
                     command += f' -Pause {pause}'
-                # Add proxy if available
                 if proxy and '-useproxy' not in command.lower():
                     command += f' -useproxy {proxy}'
                     
             elif 'curl' in command.lower():
                 if '-A' not in command and '--user-agent' not in command.lower():
                     command += f' -A "{user_agent}"'
-                # Add random referer
                 if '--referer' not in command.lower():
                     referers = ["https://www.google.com/", "https://www.bing.com/"]
                     command += f' --referer "{random.choice(referers)}"'
-                # Add proxy
                 if proxy and '-x' not in command and '--proxy' not in command.lower():
                     command += f' -x {proxy}'
-                # Connection timing
                 if '--connect-timeout' not in command:
                     command += ' --connect-timeout 30'
                     
             elif 'wget' in command.lower():
                 if '-U' not in command and '--user-agent' not in command.lower():
                     command += f' -U "{user_agent}"'
-                # Random wait between requests
                 if '--wait' not in command and '--random-wait' not in command:
                     command += f' --random-wait --wait={random.randint(2,5)}'
-                # Add proxy
                 if proxy:
                     proxy_env = f'http_proxy={proxy} https_proxy={proxy} '
                     command = proxy_env + command
         
-        # Nmap stealth configuration
         if 'nmap' in command.lower():
-            # Timing template
             if '-T' not in command:
-                # T2 = Polite, T3 = Normal
                 timing = random.choice(['-T2', '-T3']) if self.stealth_mode else '-T3'
                 command += f' {timing}'
             
-            # Fragmentation
             if '-f' not in command and random.random() > 0.5:
-                command += ' -f'  # Fragment packets
+                command += ' -f'
             
-            # Decoy scans
             if '-D' not in command and random.random() > 0.6:
-                # Generate random decoy IPs
                 decoys = self._generate_decoy_ips(3)
                 command += f' -D {",".join(decoys)},ME'
             
-            # Source port randomization
             if '--source-port' not in command and random.random() > 0.5:
                 port = random.choice([53, 80, 443, 8080])
                 command += f' --source-port {port}'
             
-            # Randomize target order
             if '--randomize-hosts' not in command:
                 command += ' --randomize-hosts'
             
-            # Proxy support (through proxychains)
             if proxy and 'proxychains' not in command:
                 command = f'proxychains4 {command}'
         
-        # SQLMap stealth
         if 'sqlmap' in command.lower():
-            # Random user agent
             if '--user-agent' not in command and '--random-agent' not in command:
                 command += f' --user-agent="{user_agent}"'
             
-            # Delays
             if '--delay' not in command:
                 command += f' --delay={random.randint(2, 5)}'
             
-            # Randomize parameter value
             if '--randomize' not in command:
                 command += ' --randomize=param'
             
-            # Proxy
             if proxy and '--proxy' not in command:
                 command += f' --proxy={proxy}'
         
-        # Gobuster/Dirb stealth
         if any(tool in command.lower() for tool in ['gobuster', 'dirb', 'ffuf']):
             if 'gobuster' in command.lower():
-                # User agent
                 if '-a' not in command and '--useragent' not in command:
                     command += f' -a "{user_agent}"'
-                # Delay
                 if '--delay' not in command:
                     delay = f'{random.randint(500, 2000)}ms'
                     command += f' --delay {delay}'
-                # Proxy
                 if proxy and '-p' not in command and '--proxy' not in command:
                     command += f' --proxy {proxy}'
         
@@ -205,10 +272,25 @@ class CommandExecutor:
         else:
             delay = self.timing_randomizer.get_delay()
         
-        # Additional jitter
         if self.last_execution_time > 0:
             elapsed = time.time() - self.last_execution_time
             if elapsed < delay:
                 await asyncio.sleep(delay - elapsed)
         else:
             await asyncio.sleep(delay)
+    
+    def get_log_directory(self) -> str:
+        """Get the log directory for this agent"""
+        return self.log_dir
+    
+    def get_execution_stats(self) -> Dict:
+        """Get execution statistics"""
+        return {
+            "agent_id": self.agent_id,
+            "target": self.target,
+            "execution_count": self.execution_count,
+            "error_count": self.error_count,
+            "last_execution_time": self.last_execution_time,
+            "log_directory": self.log_dir,
+            "platform": "windows" if self.is_windows else "linux"
+        }

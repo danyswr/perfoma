@@ -1,17 +1,18 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
-from agent.manager import AgentManager
+from agent import get_agent_manager
 from models.router import ModelRouter
 from monitor.resource import ResourceMonitor
 from datetime import datetime
 
 router = APIRouter()
 
-# Global instances
-agent_manager = AgentManager()
-model_router = ModelRouter()
-resource_monitor = ResourceMonitor()
+def get_managers():
+    """Get shared manager instances"""
+    return get_agent_manager(), ModelRouter(), ResourceMonitor()
+
+agent_manager, model_router, resource_monitor = get_managers()
 
 class TargetInput(BaseModel):
     target: str
@@ -175,6 +176,24 @@ async def get_agent_resources():
     try:
         resources = await resource_monitor.get_agent_resources()
         return resources
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/resources/agents/{agent_id}/history")
+async def get_agent_resource_history(agent_id: str):
+    """Get resource history for specific agent (for graphs)"""
+    try:
+        history = await resource_monitor.get_agent_history(agent_id)
+        return history
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/resources/history")
+async def get_system_resource_history():
+    """Get system resource history (for graphs)"""
+    try:
+        history = resource_monitor.get_system_history()
+        return history
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
