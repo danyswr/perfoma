@@ -61,16 +61,25 @@ export default function Dashboard() {
 
   useEffect(() => {
     let isMounted = true
+    let isFirstCheck = true
+    
     const checkHealth = async () => {
       if (!isMounted) return
-      setBackendStatus("checking")
+      
+      if (isFirstCheck) {
+        setBackendStatus("checking")
+        isFirstCheck = false
+      }
+      
       const isHealthy = await checkBackendHealth()
       if (isMounted) {
         setBackendStatus(isHealthy ? "online" : "offline")
       }
     }
+    
     checkHealth()
-    const interval = setInterval(checkHealth, 5000)
+    const interval = setInterval(checkHealth, 10000)
+    
     return () => {
       isMounted = false
       clearInterval(interval)

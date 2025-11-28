@@ -4,6 +4,13 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-28**: Fixed agent state management issues
+  - Fixed race condition where polling could overwrite newly created agents
+  - Added isCreatingRef flag to prevent state overwrites during agent creation
+  - Reduced polling frequency from 1s to 3s to prevent race conditions
+  - Fixed health check flickering by only showing "checking" on initial load
+  - Extended protection window for syncAgents (3s) and addAgent (2s)
+
 - **2024-11-27**: Completed Replit environment setup
   - Installed Python 3.11 and all required dependencies
   - Configured Next.js for Replit's proxy environment (allowedDevOrigins)

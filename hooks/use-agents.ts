@@ -8,8 +8,8 @@ import { formatDuration } from "@/lib/utils"
 
 function transformAgent(agentRes: AgentResponse, index: number): Agent {
   return {
-    id: agentRes.id, // PENTING: Gunakan ID asli untuk API call
-    displayId: `${index + 1}`, // Gunakan ini untuk tampilan nomor urut
+    id: agentRes.id,
+    displayId: `${index + 1}`,
     status: (agentRes.status || "idle") as "idle" | "running" | "paused" | "error",
     lastCommand: agentRes.last_command || "Awaiting command...",
     executionTime: formatDuration(agentRes.execution_time || 0),
@@ -27,18 +27,24 @@ export function useAgents() {
   const [loading, setLoading] = useState(false)
   const { lastMessage, requestUpdates, connected } = useWebSocket()
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const lastFetchRef = useRef<number>(0)
+  const isCreatingRef = useRef<boolean>(false)
 
   const fetchAgents = useCallback(async () => {
+    if (isCreatingRef.current) {
+      return
+    }
+    
     try {
-      // Menggunakan (as any) untuk bypass jika tipe di api belum update
-      const response = await (api as any).getAgents()
+      const response = await api.getAgents()
       if (response.data?.agents) {
-        setAgents(response.data.agents.map((agent: any, index: number) => 
+        const newAgents = response.data.agents.map((agent: any, index: number) => 
           transformAgent(agent, index)
-        ))
+        )
+        setAgents(newAgents)
+        lastFetchRef.current = Date.now()
       }
     } catch {
-      // Silent fail, will retry on next poll
     }
   }, [])
 
@@ -81,11 +87,15 @@ export function useAgents() {
 
   // Handle WebSocket updates
   useEffect(() => {
+    if (isCreatingRef.current) {
+      return
+    }
+    
     if (lastMessage?.type === "agent_update" && lastMessage.agents) {
       setAgents(
         lastMessage.agents.map((a: any, index: number) => ({
-          id: a.id, // ID Asli
-          displayId: `${index + 1}`, // Nomor urut tampilan
+          id: a.id,
+          displayId: `${index + 1}`,
           status: (a.status || "idle") as "idle" | "running" | "paused" | "error",
           lastCommand: a.last_command || "Awaiting command...",
           executionTime: formatDuration(a.execution_time || 0),
@@ -98,13 +108,20 @@ export function useAgents() {
     }
   }, [lastMessage])
 
-  // Polling fallback
+  // Polling fallback - use longer interval to prevent race conditions
   useEffect(() => {
-    fetchAgents()
+    const initialFetch = setTimeout(() => {
+      if (!isCreatingRef.current) {
+        fetchAgents()
+      }
+    }, 500)
 
-    // Poll every 1 second if connected, otherwise wait longer
-    const interval = connected ? 1000 : 5000
+    const interval = connected ? 3000 : 5000
     pollIntervalRef.current = setInterval(() => {
+      if (isCreatingRef.current) {
+        return
+      }
+      
       if (connected) {
         requestUpdates()
       } else {
@@ -113,6 +130,7 @@ export function useAgents() {
     }, interval)
 
     return () => {
+      clearTimeout(initialFetch)
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current)
       }
@@ -120,9 +138,11 @@ export function useAgents() {
   }, [connected, fetchAgents, requestUpdates])
 
   const syncAgents = useCallback((agentIds: string[]) => {
+    isCreatingRef.current = true
+    
     const newAgents: Agent[] = agentIds.map((id, index) => ({
-      id: id, // ID Asli dari parameter
-      displayId: `${index + 1}`, // Nomor urut
+      id: id,
+      displayId: `${index + 1}`,
       status: "running" as const,
       lastCommand: "Initializing...",
       executionTime: "00:00",
@@ -132,6 +152,10 @@ export function useAgents() {
       progress: 0,
     }))
     setAgents(newAgents)
+    
+    setTimeout(() => {
+      isCreatingRef.current = false
+    }, 3000)
   }, [])
 
   const addAgent = useCallback(async (config?: {
@@ -143,20 +167,30 @@ export function useAgents() {
     model_name?: string
   }) => {
     if (agents.length >= 10) return null
+    
+    isCreatingRef.current = true
+    setLoading(true)
+    
     try {
-      setLoading(true)
       const response = await api.createAgent(config)
       if (response.data?.agent) {
         const newAgent = transformAgent(response.data.agent, agents.length)
         setAgents(prev => [...prev, newAgent])
+        
+        setTimeout(() => {
+          isCreatingRef.current = false
+        }, 2000)
+        
         return response.data.agent_id
       }
       if (response.error) {
         console.error("Failed to create agent:", response.error)
       }
+      isCreatingRef.current = false
       return null
     } catch (error) {
       console.error("Failed to create agent:", error)
+      isCreatingRef.current = false
       return null
     } finally {
       setLoading(false)
