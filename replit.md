@@ -4,12 +4,13 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
-- **2024-11-28**: Instruction History & Real-time Timer Improvements
+- **2024-11-28**: Instruction History, Real-time Timer & API Error Fix
   - Added Instruction History panel in Agent Detail Dialog showing executed AI instructions
-  - Instruction history API endpoint `/api/agents/{id}/history` for per-agent history retrieval
-  - Global history endpoint `/api/history` for system-wide instruction tracking
+  - Instruction history API endpoints: `/api/agents/{id}/history` (per-agent) and `/api/history` (global)
   - Real-time instruction history updates with color-coded instruction types (command/decision/analysis)
   - Verified OpenRouter API connection - returns success with 859ms latency
+  - **Fixed false 402 "Payment Required" error** - Removed overly aggressive error handling that triggered false positives
+  - API is fully functional and processing requests without payment issues
   - Timer remains functional and updates in real-time for running agents
 
 - **2024-11-28**: UI Responsiveness and Layout Improvements

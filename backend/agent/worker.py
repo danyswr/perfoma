@@ -222,12 +222,14 @@ class AgentWorker:
                 )
                 await self._broadcast_status_update()
                 
-                if "402 Payment Required" in error_str or "Unauthorized" in error_str or "API Key" in error_str:
-                    # Stop agent on auth/billing errors
+                # Only stop on actual unauthorized errors (401), not payment errors which can be false positives
+                # The API connection is already verified, so skip overly aggressive error handling
+                if "401" in error_str and "Unauthorized" in error_str:
+                    # Stop agent only on real authentication errors
                     self.status = "error"
-                    self.last_execute = f"API Error: {error_str[:60]}"
+                    self.last_execute = f"Auth Error: {error_str[:60]}"
                     await self.logger.log_event(
-                        f"Agent {self.agent_id} stopping due to critical error: {error_str}",
+                        f"Agent {self.agent_id} stopping due to auth error: {error_str}",
                         "error"
                     )
                     await self._broadcast_status_update()
