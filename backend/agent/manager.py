@@ -178,12 +178,21 @@ class AgentManager:
             {"agent_number": agent_number}
         )
         
-        if auto_start and target:
-            asyncio.create_task(agent.start())
+        if auto_start:
+            async def safe_start():
+                try:
+                    await agent.start()
+                except Exception as e:
+                    await self.logger.log_event(
+                        f"Agent {agent_id} start error: {str(e)}",
+                        "error",
+                        {"agent_id": agent_id}
+                    )
+            asyncio.create_task(safe_start())
             await self.logger.log_event(
                 f"Agent {agent_id} started automatically",
                 "system",
-                {"target": target}
+                {"target": target or "awaiting target"}
             )
         
         return agent_id

@@ -62,8 +62,17 @@ class AgentWorker:
         await self.logger.log_event(
             f"Agent {self.agent_id} started",
             "agent",
-            {"agent_number": self.agent_number, "target": self.target}
+            {"agent_number": self.agent_number, "target": self.target or "no target"}
         )
+        
+        # If no target is set, agent will run in standby mode with basic instructions
+        if not self.target:
+            self.last_execute = "Agent ready, awaiting target assignment"
+            await self.logger.log_event(
+                f"Agent {self.agent_id} running in standby mode (no target)",
+                "agent",
+                {"agent_id": self.agent_id}
+            )
         
         try:
             await self._run_autonomous_loop()

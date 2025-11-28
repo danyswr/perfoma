@@ -5,7 +5,17 @@ import { useState, useEffect, useCallback, useRef } from "react"
 const getWsUrl = () => {
   if (typeof window !== 'undefined') {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    return `${protocol}//${window.location.host}/ws/live`
+    const host = window.location.host
+    
+    // In production (no port in URL), use the rewrites path
+    if (!host.includes(':')) {
+      return `${protocol}//${host}/ws/live`
+    }
+    
+    // In development, connect directly to backend on port 8000
+    // This avoids Next.js dev server WebSocket proxy limitations
+    const backendHost = host.replace(':5000', ':8000').replace(':3000', ':8000')
+    return `${protocol}//${backendHost}/ws/live`
   }
   return "ws://localhost:8000/ws/live"
 }

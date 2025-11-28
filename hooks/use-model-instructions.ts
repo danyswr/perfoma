@@ -7,6 +7,17 @@ import { useWebSocket } from "@/hooks/use-websocket"
 const STORAGE_KEY = "performa_model_instructions"
 const MAX_INSTRUCTIONS = 100
 
+function generateUUID(): string {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
+}
+
 function loadFromStorage(): ModelInstruction[] {
   if (typeof window === 'undefined') return []
   try {
@@ -61,7 +72,7 @@ export function useModelInstructions() {
       
       if (data.type === "model_instruction") {
         const newInstruction: ModelInstruction = {
-          id: crypto.randomUUID(),
+          id: generateUUID(),
           agentId: String(data.agent_id || "unknown"),
           modelName: String(data.model_name || "GPT-4 Turbo"),
           instruction: String(data.instruction || data.content || ""),
@@ -84,7 +95,7 @@ export function useModelInstructions() {
         if (commandContent && !processedCommands.current.has(commandKey)) {
           processedCommands.current.add(commandKey)
           const newInstruction: ModelInstruction = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             agentId,
             modelName: String(data.model || "AI Model"),
             instruction: commandContent,
@@ -103,7 +114,7 @@ export function useModelInstructions() {
         if (analysisContent && !processedCommands.current.has(commandKey)) {
           processedCommands.current.add(commandKey)
           const newInstruction: ModelInstruction = {
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             agentId,
             modelName: String(data.model || "AI Model"),
             instruction: analysisContent,
@@ -128,7 +139,7 @@ export function useModelInstructions() {
             }
             
             const newInstruction: ModelInstruction = {
-              id: crypto.randomUUID(),
+              id: generateUUID(),
               agentId,
               modelName: "AI Model",
               instruction: lastCommand,
@@ -145,7 +156,7 @@ export function useModelInstructions() {
   const addInstruction = useCallback((instruction: Omit<ModelInstruction, "id" | "timestamp">) => {
     const newInstruction: ModelInstruction = {
       ...instruction,
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       timestamp: new Date().toLocaleTimeString()
     }
     const commandKey = `${newInstruction.agentId}-${newInstruction.instruction}`
