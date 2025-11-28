@@ -4,14 +4,14 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
-- **2024-11-28**: Model Routing & Real-time Updates Fixed ✅
-  - ✅ FIXED: ModelRouter now prioritizes direct API keys (Anthropic/OpenAI) over OpenRouter fallback
-  - ✅ FIXED: Claude models require ANTHROPIC_API_KEY directly - no more 402 OpenRouter errors
-  - ✅ FIXED: WebSocket broadcast tasks have proper lifecycle management (cancel when no clients)
-  - ✅ FIXED: History updates use content-based hash detection (not just length) for real-time updates
-  - ✅ IMPROVED: 500ms broadcast interval for smoother real-time agent status updates
-  - ✅ IMPROVED: Default model set to Claude 3.5 Sonnet with Anthropic provider
-  - STATUS: System is operational with proper Anthropic API integration
+- **2024-11-28**: OpenRouter Full Integration - All Models Available ✅
+  - ✅ CHANGED: ModelRouter now uses OpenRouter as primary provider for all models
+  - ✅ CHANGED: All models available through OpenRouter (GPT-4, Claude, Gemini, Llama, etc.)
+  - ✅ CHANGED: Default model set to GPT-4 Turbo (freely selectable by users)
+  - ✅ CHANGED: Frontend model labels updated to show "OpenRouter" provider
+  - ✅ CHANGED: Backend startup shows OpenRouter as primary required key
+  - ✅ IMPROVED: Optional fallback to direct APIs if Anthropic/OpenAI keys are configured
+  - STATUS: System uses OpenRouter - users can freely choose any available model
 
 - **2024-11-28**: Final Session - All Systems Fixed & Operational ✅
   - ✅ FIXED: Restored worker.py with complete AgentWorker class
@@ -124,9 +124,11 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
 - **Deployment**: Configured for VM deployment to maintain persistent connections
 
 ## Environment Variables
+- `OPENROUTER_API_KEY`: **Required** - API key for OpenRouter models (all agents use this)
+- `ANTHROPIC_API_KEY`: Optional - Direct API key for Claude models (bypasses OpenRouter if set)
+- `OPENAI_API_KEY`: Optional - Direct API key for GPT models (bypasses OpenRouter if set)
 - `HOST`: Backend bind address (0.0.0.0)
 - `PORT`: Backend port (8000)
-- `OPENROUTER_API_KEY`: API key for OpenRouter models (required for agent operations)
 - `LOG_DIR`: Directory for application logs (./logs)
 - `FINDINGS_DIR`: Directory for security findings (./findings)
 - `NEXT_PUBLIC_API_URL`: Empty (uses relative paths with rewrites)

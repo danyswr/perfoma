@@ -82,63 +82,37 @@ class ModelRouter:
         self.last_error = None
         
     def _get_provider_for_model(self, model_name: str) -> str:
-        """Determine the provider for a model, checking available API keys.
-        Priority: Direct API keys first, then OpenRouter as fallback only if configured.
-        """
-        # Check if model explicitly maps to a provider with a configured key
+        """Determine the provider for a model. Always tries direct API keys first, but falls back to OpenRouter."""
+        # Check if model explicitly maps to a provider
         if model_name in self.AVAILABLE_MODELS:
             preferred_provider = self.AVAILABLE_MODELS[model_name]["provider"]
             
-            # Check if the preferred provider has a key configured
-            if preferred_provider == "anthropic":
-                if settings.ANTHROPIC_API_KEY:
-                    return "anthropic"
-                # Don't fallback to openrouter for Anthropic models - require direct key
-                raise Exception("Anthropic API key is required for Claude models. Please add ANTHROPIC_API_KEY to your secrets.")
-            elif preferred_provider == "openai":
-                if settings.OPENAI_API_KEY:
-                    return "openai"
-                elif settings.OPENROUTER_API_KEY:
-                    return "openrouter"  # OpenAI models can work via OpenRouter
-                raise Exception("OpenAI or OpenRouter API key is required. Please add OPENAI_API_KEY or OPENROUTER_API_KEY to your secrets.")
-            elif preferred_provider == "google":
-                if settings.GOOGLE_API_KEY:
-                    return "google"
-                elif settings.OPENROUTER_API_KEY:
-                    return "openrouter"  # Google models can work via OpenRouter
-                raise Exception("Google or OpenRouter API key is required. Please add GOOGLE_API_KEY or OPENROUTER_API_KEY to your secrets.")
-            elif preferred_provider == "openrouter":
-                if settings.OPENROUTER_API_KEY:
-                    return "openrouter"
-                raise Exception("OpenRouter API key is required. Please add OPENROUTER_API_KEY to your secrets.")
+            # Try direct API if available
+            if preferred_provider == "anthropic" and settings.ANTHROPIC_API_KEY:
+                return "anthropic"
+            elif preferred_provider == "openai" and settings.OPENAI_API_KEY:
+                return "openai"
+            elif preferred_provider == "google" and settings.GOOGLE_API_KEY:
+                return "google"
+            # Otherwise use OpenRouter for any model
+            elif settings.OPENROUTER_API_KEY:
+                return "openrouter"
             elif preferred_provider == "custom":
                 return "custom"
         
-        # For unknown models, check by prefix
-        if model_name.startswith("anthropic/") or model_name.startswith("claude"):
-            if settings.ANTHROPIC_API_KEY:
-                return "anthropic"
-            raise Exception("Anthropic API key is required for Claude models. Please add ANTHROPIC_API_KEY to your secrets.")
+        # For unknown models, try by prefix
+        if (model_name.startswith("anthropic/") or model_name.startswith("claude")) and settings.ANTHROPIC_API_KEY:
+            return "anthropic"
+        if (model_name.startswith("openai/") or model_name.startswith("gpt")) and settings.OPENAI_API_KEY:
+            return "openai"
+        if (model_name.startswith("google/") or model_name.startswith("gemini")) and settings.GOOGLE_API_KEY:
+            return "google"
         
-        if model_name.startswith("openai/") or model_name.startswith("gpt"):
-            if settings.OPENAI_API_KEY:
-                return "openai"
-            elif settings.OPENROUTER_API_KEY:
-                return "openrouter"
-            raise Exception("OpenAI or OpenRouter API key is required.")
-        
-        if model_name.startswith("google/") or model_name.startswith("gemini"):
-            if settings.GOOGLE_API_KEY:
-                return "google"
-            elif settings.OPENROUTER_API_KEY:
-                return "openrouter"
-            raise Exception("Google or OpenRouter API key is required.")
-        
-        # Default fallback for other models: require OpenRouter
+        # Default to OpenRouter for any model
         if settings.OPENROUTER_API_KEY:
             return "openrouter"
         
-        raise Exception("No API key configured. Please add ANTHROPIC_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY to your secrets.")
+        raise Exception("OpenRouter API key is required. Please add OPENROUTER_API_KEY to your environment.")
         
     def get_available_models(self) -> List[Dict[str, Any]]:
         """Get list of available models"""

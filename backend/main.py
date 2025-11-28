@@ -41,9 +41,9 @@ async def startup_event():
     print("🚀 Autonomous CyberSec AI Agent System Starting...")
     print(f"📁 Log Directory: {settings.LOG_DIR}")
     print(f"📁 Findings Directory: {settings.FINDINGS_DIR}")
-    print(f"🔑 Anthropic API Key: {'✓ Configured' if settings.ANTHROPIC_API_KEY else '✗ Missing'}")
-    print(f"🔑 OpenAI API Key: {'✓ Configured' if settings.OPENAI_API_KEY else '✗ Missing'}")
     print(f"🔑 OpenRouter API Key: {'✓ Configured' if settings.OPENROUTER_API_KEY else '✗ Missing'}")
+    print(f"🔑 Anthropic API Key: {'✓ Optional' if settings.ANTHROPIC_API_KEY else '✗ Not configured'}")
+    print(f"🔑 OpenAI API Key: {'✓ Optional' if settings.OPENAI_API_KEY else '✗ Not configured'}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
