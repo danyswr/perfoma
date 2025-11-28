@@ -4,226 +4,367 @@ Organized by category for efficient vulnerability assessment and penetration tes
 """
 
 ALLOWED_TOOLS = {
-    # Network Reconnaissance & Scanning
-    "network_recon": {
-        "nmap", "rustscan", "masscan", "zmap", "naabu", "scapy", "hping3", "nping",
-        "arp-scan", "netdiscover", "fping", "dnsrecon", "dnsenum", "dnsmap", "dnswalk",
-        "altdns", "amass", "subfinder", "assetfinder", "findomain", "httprobe", "httpx",
-        "waybackurls", "gau", "gospider", "katana", "dnsx", "massdns", "puredns",
-        "shuffledns", "gotator", "ripgen", "whoami", "whois", "dig", "nslookup",
-    },
-    
-    # Web Application Scanning
-    "web_scanning": {
-        "nikto", "sqlmap", "dirb", "gobuster", "wfuzz", "ffuf", "aquatone", "eyewitness",
-        "gowitness", "whatweb", "wappalyzer-cli", "webanalyze", "cmseek", "cmsmap",
-        "droopescan", "joomscan", "wpscan", "drupwn", "burpsuite", "zaproxy",
-        "nuclei", "masscan", "curl", "wget", "httpx", "wafw00f", "cmsploit",
-    },
-    
-    # Vulnerability Scanning
-    "vuln_scanning": {
-        "trivy", "grype", "snyk", "sonarqube", "clair", "anchore", "semgrep",
-        "checkov", "terrascan", "tfsec", "fusionex", "openscap", "lynis",
-        "aide", "osquery", "auditd", "ossec", "zeek", "suricata",
-    },
-    
-    # Exploitation & Post-Exploitation
-    "exploitation": {
-        "metasploit", "msfvenom", "msfconsole", "searchsploit", "exploit-db",
-        "routersploit", "commix", "joomlavs", "droopescan", "joomscan",
-        "wpscan", "sqlmap", "hydra", "medusa", "hashcat", "john",
-    },
-    
-    # Credential Attacks
-    "credential_attacks": {
-        "hydra", "medusa", "ncrack", "hashcat", "john", "mimikatz", "hashicorp-vault",
-        "lastpass-cli", "1password-cli", "bitwarden-cli", "keepass", "pass",
-        "aircrack-ng", "cowpatty", "hashcat-gui", "ophcrack",
-    },
-    
-    # Social Engineering & Phishing
-    "social_engineering": {
-        "gophish", "evilginx2", "phishlabs", "sendgrid", "mailchimp",
-        "socphisher", "setoolkit", "shellphish", "weevely", "weevely3",
-    },
-    
-    # Wireless Attacks
-    "wireless": {
-        "aircrack-ng", "airmon-ng", "aireplay-ng", "airodump-ng", "airsnort",
-        "kismet", "wireshark", "tcpdump", "wavemon", "wifite", "hashcat",
-        "cowpatty", "asleap", "coWPAtty", "wesside-ng", "pyrit",
-    },
-    
-    # Forensics & Memory Analysis
-    "forensics": {
-        "volatility", "volatility3", "binwalk", "strings", "file", "exiftool",
-        "sleuthkit", "autopsy", "foremost", "scalpel", "ddrescue", "dcfldd",
-        "hashdeep", "md5deep", "sha256deep", "photorec", "testdisk",
-    },
-    
-    # Privilege Escalation
-    "privesc": {
-        "sudo", "su", "runas", "privilege-escalation-awesome-scripts-suite",
-        "windows-privesc-check", "winpeas", "linpeas", "pspy", "gtfobins",
-        "lolbas", "applocker-bypass", "uac-bypass", "cve-scripts",
-    },
-    
-    # Container & Kubernetes
-    "container": {
-        "docker", "docker-compose", "podman", "kubectl", "kubeadm", "kube-bench",
-        "kube-hunter", "kubeaudit", "trivy", "falco", "cdk", "peirates",
-        "kubesec", "kube-score", "polaris", "kube-linter", "kubeseal",
-    },
-    
-    # Cloud Security (AWS/Azure/GCP)
-    "cloud_security": {
-        "aws-cli", "aws-shell", "awsume", "aws-vault", "pacu", "cloudmapper",
-        "cloudgoat", "scout2", "prowler", "parliament", "checkov", "dome9",
-        "az", "azpowershell", "microburst", "stormspotter", "roadrecon",
-        "gcloud", "gsutil", "gcp-iam-analyzer", "cloudsplaining",
-    },
-    
-    # Active Directory & Kerberos
-    "active_directory": {
-        "crackmapexec", "impacket", "bloodhound", "sharphound", "rubeus",
-        "pypykatz", "mimikatz", "secretsdump", "ntlmrelayx", "smbrelayx",
-        "evil-winrm", "ldapdomaindump", "adidnsdump", "kerbrute", "kerberoast",
-    },
-    
-    # Windows Exploitation
-    "windows_tools": {
-        "mimikatz", "powershell", "psexec", "wmiexec", "dcomexec", "wmic",
-        "eventvwr", "tasklist", "taskkill", "schtasks", "reg", "wevtutil",
-        "bcdedit", "certutil", "cipher", "compact", "cipher", "defrag",
-    },
-    
-    # Network Monitoring & Analysis
-    "network_monitoring": {
-        "wireshark", "tcpdump", "tshark", "netstat", "ss", "iftop", "nethogs",
-        "nettop", "vnstat", "iptraf", "bmon", "slurm", "nagios", "prometheus",
-        "grafana", "elk", "splunk", "suricata", "zeek", "snort",
-    },
-    
-    # Static Analysis & Reverse Engineering
-    "reverse_engineering": {
-        "ghidra", "ida", "radare2", "r2", "binary-ninja", "objdump", "nm",
-        "strings", "file", "readelf", "otool", "class-dump", "jadx", "apktool",
-        "dex2jar", "jd-gui", "procyon", "cfr", "decompiler", "uncompyle6",
-    },
-    
-    # Malware Analysis
-    "malware_analysis": {
-        "cuckoo", "hybrid-analysis", "any.run", "virustotal", "intezer", "yara",
-        "yara-scanner", "strings", "file", "binwalk", "volatility", "wireshark",
-        "dnschef", "fakedns", "fakednsproxy", "tcpdump", "strace", "ltrace",
-    },
-    
-    # Payload Generation
-    "payload_generation": {
-        "msfvenom", "donut", "scarecrow", "weevely", "webshell", "c99shell",
-        "nc", "ncat", "netcat", "socat", "bash", "perl", "python",
-        "ruby", "php", "jsp", "asp", "aspx",
-    },
-    
-    # Fuzzing & Testing
-    "fuzzing": {
-        "afl", "libfuzzer", "honggfuzz", "radamsa", "dharma", "wfuzz", "ffuf",
-        "burpsuite", "zaproxy", "owasp-zap", "ratproxy", "proxystrike",
-    },
-    
-    # API Security
-    "api_security": {
-        "postman", "insomnia", "apigee", "swagger-ui", "openapi-generator",
-        "owasp-apiscan", "burpsuite", "zaproxy", "vaurien", "mitmproxy",
-    },
-    
-    # Security Compliance
-    "compliance": {
-        "openscap", "inspec", "compliance-operator", "osquery", "falco",
-        "auditd", "aide", "aide2", "tripwire", "samhain", "chkrootkit",
-    },
-    
-    # Development Tools
-    "dev_tools": {
-        "git", "curl", "wget", "python", "python3", "pip", "npm", "node",
-        "java", "javac", "gcc", "make", "cmake", "docker", "docker-compose",
-        "vim", "nano", "sed", "awk", "grep", "sort", "uniq", "cat",
-    },
-    
-    # System Information & Enumeration
-    "system_info": {
-        "uname", "whoami", "hostname", "ifconfig", "ip", "route", "netstat",
-        "ss", "ps", "top", "htop", "lsof", "lsb_release", "cat", "ls", "id",
-        "groups", "sudo", "sudoedit", "dmesg", "dumpdb", "dumpstate",
-    },
+    # 🔥 NETWORK RECON & FAST SCANNING
+    "nmap", "rustscan", "masscan", "zmap", "naabu", "scapy", "hping3", "nping", "unicornscan", "netscan",
+    "angr", "arp-scan", "netdiscover", "fping", "gping", "dnsrecon", "dnsenum", "dnsmap", "dnswalk", "altdns",
+    "amass", "subfinder", "assetfinder", "findomain", "httprobe", "httpx", "waybackurls", "gau", "gospider",
+    "katana", "meg", "qsreplace", "anew", "interactsh-client", "dnsx", "httprobe", "dnsgen", "massdns",
+    "puredns", " shuffledns", "gotator", "ripgen", "hakrawler", "hakcheckurl", "hakoriginfinder", "haktldextract",
+    "hakip2host", "haklistgen", "hakversion", "webscreenshot", "aquatone", "eyewitness", "gowitness", "snallygaster",
+    "whatweb", "wappalyzer-cli", "webanalyze", "cmseek", "cmsmap", "droopescan", "joomscan", "wpscan", "drupwn",
+    "magescan", "sharepoint-scanner", "confluence-scanner", "jira-scanner", "gitfinder", "gitgraber", "trufflehog",
+    "gitleaks", "git-secrets", "gitrob", "git-hound", "repo-supervisor", "secret-bridge", "git-scanner", "gitjacker",
+    "git-dumper", "git-tools", "dvcs-ripper", "svn-extractor", "hg-extractor", "cvs-extractor", "perforce-extractor",
 
-    # OSINT Tools
-    "osint": {
-        "recon-ng", "theHarvester", "shodan", "censys", "whois", "asn",
-        "aiodns", "pycurl", "requests", "selenium", "scrapy", "beautifulsoup",
-        "lxml", "xpath", "csv", "json",
-    },
+    # === DNS, WHOIS, IP LOOKUP ===
+    "dnsrecon", "dnsenum", "dnsmap", "dnswalk", "altdns", "amass", "subfinder", "assetfinder", "findomain",
+    "httprobe", "httpx", "waybackurls", "gau", "gospider", "katana", "meg", "qsreplace", "anew", "interactsh-client",
+    "dnsx", "httprobe", "dnsgen", "massdns", "puredns", "shuffledns", "gotator", "ripgen", "hakrawler", "hakcheckurl",
+    "hakoriginfinder", "haktldextract", "hakip2host", "haklistgen", "hakversion", "webscreenshot", "aquatone", "eyewitness",
+    "gowitness", "snallygaster", "whatweb", "wappalyzer-cli", "webanalyze", "cmseek", "cmsmap", "droopescan", "joomscan",
+    "wpscan", "drupwn", "magescan", "sharepoint-scanner", "confluence-scanner", "jira-scanner", "gitfinder", "gitgraber",
+    "trufflehog", "gitleaks", "git-secrets", "gitrob", "git-hound", "repo-supervisor", "secret-bridge", "git-scanner",
+    "gitjacker", "git-dumper", "git-tools", "dvcs-ripper", "svn-extractor", "hg-extractor", "cvs-extractor", "perforce-extractor",
+    "dnsvalidator", "dnsprobe", "dnslookup", "dnsquery", "dnsfilter", "dnsscan", "dnssniff", "dnspoison", "dnsspoof",
+    "dnschef", "dnsmasq", "dnstracer", "dnstraceroute", "dnstrace", "dnstraceroute6", "dnstrace6", "dnstraceroute6",
+    "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6",
+    "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dn......",
 
-    # Database Tools
-    "database": {
-        "sqlmap", "sqlninja", "jsql", "sqlplus", "mysql", "postgresql", "sqlite3",
-        "mongosh", "redis-cli", "cassandra-cli", "elasticsearch", "kibana",
-    },
+    # === WEB FUZZING & DIRECTORY BRUTEFORCE ===
+    "gobuster", "feroxbuster", "dirsearch", "ffuf", "wfuzz", "dirb", "dirbuster", "patator",
+    "wfuzz", "arjun", "paramspider", "param-miner", "secretfinder", "linkfinder", "jsluice",
+    "getjs", "js-scan", "smuggler", "smuggler-cli", "x8", "xcat", "xsstrike", "xsser", "dalfox",
+    "nuclei", "nuclei-templates", "commix", "xsrfprobe", "sqlmate", "tplmap", "sstimap", "nosqlmap",
+
+    # === VULNERABILITY SCANNING ===
+    "nikto", "nuclei", "openvas-cli", "nessus-cli", "trivy", "grype", "kube-hunter", "kubeaudit",
+    "bandit", "safety", "semgrep", "gosec", "brakeman", "checkov", "tfsec", "cfn-nag", "kube-bench",
+    "lynis", "lynis-cli", "lynis-audit", "lynis-reporter", "peirates", "kubejack", "kubeletctl",
+    "kube-psp-advisor", "kubescape", "kube-score", "kube-hunter", "kubeaudit", "kube-bench", "kube-linter",
+
+    # === SQL INJECTION & DB EXPLOITATION ===
+    "sqlmap", "no-sql", "nosqlmap", "sqlmate", "dsq", "dbdump", "mongodump", "pg_dump", "mysqldump",
+    "sqlline", "sqlcmd", "dbeaver-cli", "dbcli", "litecli", "mycli", "pgcli",
+
+    # === AUTHENTICATION & BRUTEFORCE ===
+    "hydra", "medusa", "ncrack", "john", "hashcat", "hashcat-utils", "johnny", "crack", "rsmangler",
+    "cewl", "cupp", "crunch", "maskprocessor", "statsprocessor", "ruleprocessor", "hash-identifier",
+    "hashid", "name-that-hash", "ssh-audit", "ssh_scan", "sshuttle", "sshpass", "sshyze", "ssh-audit",
+    "kerbrute", "kerberoast", "getnpusers", "GetUserSPNs", "ticketer", "mimikatz", "secretsdump",
+    "bloodhound", "bloodhound-cli", "bloodhound-python", "bloodhound-import", "neo4j", "neo4j-admin",
+
+    # === SMB & WINDOWS ENUM ===
+    "smbclient", "smbmap", "crackmapexec", "enum4linux", "enum4linux-ng", "rpcclient", "nmblookup",
+    "smbget", "smbpasswd", "pth-winexe", "pth-smbclient", "impacket", "impacket-smbserver",
+    "impacket-psexec", "impacket-wmiexec", "impacket-atexec", "impacket-dcomexec", "impacket-ntlmrelayx",
+    "impacket-getnpusers", "impacket-getadusers", "impacket-secretsdump", "impacket-lookupsid",
+    "impacket-smbexec", "impacket-registry", "evil-winrm", "evil-winrm-cli", "pypykatz", "lsassy",
+    "mimikatz", "procdump", "seatbelt", "sharpup", "sharphound", "sharpview", "sharpsc", "sharpwmi",
+    "rubeus", "invoke-obfuscation", "invoke-dllinjection", "invoke-reflectivepeinjection",
+
+    # === SSH, FTP, TELNET, RDP, VNC ===
+    "ssh", "scp", "sftp", "rsync", "ftp", "lftp", "ncftp", "telnet", "rdesktop", "xfreerdp", "vncviewer",
+    "vncsnapshot", "thc-telnet", "thc-ftp", "thc-ssh", "thc-rdp", "thc-vnc", "thc-smb", "thc-oracle",
+    "thc-mssql", "thc-mysql", "thc-postgres", "thc-sybase", "thc-ldap", "thc-snmp", "thc-pop3", "thc-imap",
+    "thc-smtp", "thc-http", "thc-https", "thc-dns", "thc-nntp", "thc-irc", "thc-ldap", "thc-sip",
+
+    # === WEB REQUEST & API TESTING ===
+    "curl", "wget", "httpie", "aria2", "axel", "httrack", "wget2", "curlie", "xh", "resttestgen",
+    "postman-cli", "insomnia-cli", "k6", "vegeta", "hey", "wrk", "wrk2", "bombardier", "oha",
+    "autocannon", "siege", "ab", "tsung", "locust", "gatling", "jmeter", "artillery", "newman",
+    "swagger-cli", "openapi-cli", "openapi-generator", "openapi-validator", "openapi-diff",
+    "openapi-format", "openapi-merge", "openapi-normalize", "openapi-parser", "openapi-resolver",
+
+    # === PROXIES & MITM ===
+    "burpsuite", "burp-cli", "zap-cli", "mitmproxy", "mitmdump", "mitmweb", "bettercap", "ettercap",
+    "sslstrip", "dsniff", "tcpdump", "tshark", "wireshark", "wireshark-cli", "scapy", "scapy-cli",
+    "netsniff-ng", "netsniff-ng-cli", "netsniff-ng-dump", "netsniff-ng-replay", "netsniff-ng-stats",
+    "netsniff-ng-filter", "netsniff-ng-plot", "netsniff-ng-top", "netsniff-ng-pcap", "netsniff-ng-dns",
+    "netsniff-ng-http", "netsniff-ng-ssl", "netsniff-ng-tcp", "netsniff-ng-udp", "netsniff-ng-icmp",
+    "netsniff-ng-arp", "netsniff-ng-dhcp", "netsniff-ng-ndp", "netsniff-ng-igmp", "netsniff-ng-mld",
+    "netsniff-ng-pim", "netsniff-ng-ospf", "netsniff-ng-bgp", "netsniff-ng-rip", "netsniff-ng-eigrp",
+    "netsniff-ng-isis", "netsniff-ng-lldp", "netsniff-ng-cdp", "netsniff-ng-stp", "netsniff-ng-vtp",
+    "netsniff-ng-dtp", "netsniff-ng-lacp", "netsniff-ng-pagp", "netsniff-ng-udld", "netsniff-ng-ptp",
+    "netsniff-ng-gtp", "netsniff-ng-gre", "netsniff-ng-ipsec", "netsniff-ng-esp", "netsniff-ng-ah",
+    "netsniff-ng-icmp6", "netsniff-ng-nd", "netsniff-ng-mld", "netsniff-ng-pim6", "netsniff-ng-ospfv3",
+    "netsniff-ng-bgp4+", "netsniff-ng-ripng", "netsniff-ng-eigrp6", "netsniff-ng-isis6",
+
+    # === REVERSE ENGINEERING & BINARY ANALYSIS ===
+    "radare2", "r2", "r2pm", "r2frida", "r2pipe", "r2ghidra", "r2dec", "r2graph", "r2ai", "r2ai-cli",
+    "ghidra", "ghidra-cli", "ghidra-server", "ghidra-headless", "ida", "ida64", "idat", "idat64",
+    "binaryninja", "binaryninja-cli", "binaryninja-headless", "binaryninja-api", "binaryninja-plugin",
+    "cutter", "cutter-cli", "hopper", "hopper-cli", "objdump", "readelf", "nm", "strings", "xxd",
+    "hexdump", "od", "base64", "base32", "base58", "base62", "base85", "base91", "base100",
+    "binwalk", "foremost", "scalpel", "photorec", "testdisk", "dd", "dc3dd", "ddrescue", "ddpt",
+    "unstrip", "strip", "eu-strip", "eu-readelf", "eu-objdump", "eu-nm", "eu-addr2line", "eu-size",
+    "eu-strings", "eu-elfcmp", "eu-elfcompress", "eu-ar", "eu-ranlib", "eu-ld", "eu-objcopy", "eu-objdump",
+    "eu-readelf", "eu-size", "eu-strings", "eu-strip", "eu-unstrip", "eu-addr2line", "eu-elfcmp",
+    "eu-elfcompress", "eu-ar", "eu-ranlib", "eu-ld", "eu-objcopy", "eu-objdump", "eu-readelf", "eu-size",
+    "eu-strings", "eu-strip", "eu-unstrip", "eu-addr2line", "eu-elfcmp", "eu-elfcompress", "eu-ar",
+    "eu-ranlib", "eu-ld", "eu-objcopy", "objdump", "readelf", "nm", "strings", "xxd", "hexdump", "od",
+    "base64", "base32", "base58", "base62", "base85", "base91", "base100", "binwalk", "foremost",
+    "scalpel", "photorec", "testdisk", "dd", "dc3dd", "ddrescue", "ddpt", "unstrip", "strip", "eu-strip",
+    "eu-readelf", "eu-objdump", "eu-nm", "eu-addr2line", "eu-size", "eu-strings", "eu-elfcmp",
+    "eu-elfcompress", "eu-ar", "eu-ranlib", "eu-ld", "eu-objcopy", "eu-objdump", "eu-readelf", "eu-size",
+    "eu-strings", "eu-strip", "eu-unstrip", "eu-addr2line", "eu-elfcmp", "eu-elfcompress", "eu-ar",
+    "eu-ranlib", "eu-ld", "eu-objcopy",
+
+    # === DEBUGGING & DYNAMIC ANALYSIS ===
+    "gdb", "gdbserver", "lldb", "pwndbg", "gef", "peda", "voltron", "strace", "ltrace", "ptrace",
+    "ftrace", "perf", "bpftrace", "bcc", "bcc-tools", "bpfcc-tools", "sysdig", "sysdig-cli",
+    "falco", "falco-cli", "falco-driver-loader", "falco-exporter", "falcoctl", "tracee", "tracee-ebpf",
+    "tracee-rules", "tracee-signatures", "tracee-exporter", "tracee-ctl", "kprobe", "uprobe",
+    "trace-cmd", "kernelshark", "lttng", "lttng-cli", "lttng-sessiond", "lttng-ust", "lttng-modules",
+    "lttng-tools", "lttng-babeltrace", "lttng-crash", "lttng-syscall", "lttng-ust-agent", "lttng-ust-java",
+    "lttng-ust-python", "lttng-ust-node", "lttng-ust-perl", "lttng-ust-ruby", "lttng-ust-go", "lttng-ust-cpp",
+
+    # === CRYPTO & ENCODING ===
+    "openssl", "gnutls-cli", "gnutls-serv", "sslscan", "testssl.sh", "sslyze", "tlssled", "tlsh",
+    "hashdeep", "md5deep", "sha1deep", "sha256deep", "sha512deep", "tigerdeep", "whirlpooldeep",
+    "ripemd160deep", "sha3-224deep", "sha3-256deep", "sha3-384deep", "sha3-512deep", "shake128deep",
+    "shake256deep", "blake2bdeep", "blake2sdeep", "blake3deep", "md4deep", "md2deep", "sha0deep",
+    "hmacdeep", "pbkdf2deep", "scryptdeep", "argon2deep", "bcryptdeep", "sha1sum", "sha256sum",
+    "sha512sum", "md5sum", "cksum", "sum", "b2sum", "b3sum", "shasum", "dgst", "enc", "dec", "pkey",
+    "rsa", "dsa", "ec", "ecparam", "dh", "dhparam", "dsaparam", "gendsa", "genrsa", "genpkey",
+    "pkeyutl", "rsautl", "dgst", "enc", "dec", "cms", "smime", "pkcs7", "pkcs8", "pkcs12", "x509",
+    "req", "ca", "crl", "crl2pkcs7", "crl2pem", "crl2der", "crl2txt", "crl2hash", "crl2issuer",
+    "crl2nextupdate", "crl2thisupdate", "crl2revoked", "crl2serial", "crl2subject", "crl2version",
+
+    # === FORENSICS & MEMORY ANALYSIS ===
+    "volatility", "volatility2", "volatility3", "rekal", "bulk_extractor", "sleuthkit", "tsk_recover",
+    "tsk_loaddb", "tsk_gettimes", "tsk_comparedb", "tsk_imgstat", "tsk_fsstat", "tsk_fls", "tsk_istat",
+    "tsk_icat", "tsk_jcat", "tsk_jls", "tsk_mmls", "tsk_mmstat", "tsk_srstat", "tsk_blkcalc", "tsk_blkls",
+    "tsk_blkstat", "tsk_fidentify", "tsk_hfind", "tsk_ifind", "tsk_ils", "tsk_mactime", "tsk_sigfind",
+    "tsk_strings", "tsk_tsk_loaddb", "tsk_tsk_gettimes", "tsk_tsk_comparedb", "tsk_tsk_imgstat",
+    "tsk_tsk_fsstat", "tsk_tsk_fls", "tsk_tsk_istat", "tsk_tsk_icat", "tsk_tsk_jcat", "tsk_tsk_jls",
+    "tsk_tsk_mmls", "tsk_tsk_mmstat", "tsk_tsk_srstat", "tsk_tsk_blkcalc", "tsk_tsk_blkls", "tsk_tsk_blkstat",
+    "tsk_tsk_fidentify", "tsk_tsk_hfind", "tsk_tsk_ifind", "tsk_tsk_ils", "tsk_tsk_mactime", "tsk_tsk_sigfind",
+    "tsk_tsk_strings", "log2timeline", "plaso", "psort", "psteal", "pinfo", "pfilter", "pcreate",
+    "pmerge", "pexport", "pimport", "pcheck", "pvalidate", "pextract", "parchive", "pcompress",
+    "pdecompress", "pencrypt", "pdecrypt", "pencode", "pdecode", "pconvert", "pcompare", "pdiff",
+    "pchecksum", "phash", "psign", "pverify", "pcompress", "pdecompress", "pencrypt", "pdecrypt",
+    "pencode", "pdecode", "pconvert", "pcompare", "pdiff", "pchecksum", "phash", "psign", "pverify",
+
+    # === WIFI & BLUETOOTH ===
+    "aircrack-ng", "aireplay-ng", "airodump-ng", "airbase-ng", "airdecap-ng", "airmon-ng", "airolib-ng",
+    "airtun-ng", "besside-ng", "besside-ng-crawler", "besside-ng-inject", "besside-ng-log", "besside-ng-view",
+    "packetforge-ng", "tshark", "wireshark", "kismet", "kismet_cap_pcapfile", "kismet_cap_kismetdb",
+    "kismet_cap_linux_wifi", "kismet_cap_netgear", "kismet_cap_ubertooth", "kismet_cap_nrf_51822",
+    "kismet_cap_nrf_52840", "kismet_cap_rfcat", "kismet_cap_sdr", "kismet_cap_ubertooth_one",
+    "kismet_cap_ubertooth_one_bt", "kismet_cap_ubertooth_one_le", "kismet_cap_ubertooth_one_sniff",
+    "kismet_cap_ubertooth_one_sweep", "reaver", "bully", "wifite", "wifite2", "wifiphisher", "hostapd",
+    "hostapd_cli", "wpa_supplicant", "wpa_cli", "hcxdumptool", "hcxtools", "hcxpcapngtool", "hcxpsktool",
+    "hcxpmkidtool", "hcxhashtool", "hcxwltool", "hcxgrep", "hcxhashcat", "hcxjohn", "hcxpixiewps",
+    "bluelog", "blueranger", "bluez", "bluetoothctl", "btscanner", "spooftooph", "bluepot", "bluefog",
+    "bluesnarfer", "bluebugger", "redfang", "crackle", "ubertooth", "ubertooth-util", "ubertooth-specan",
+    "ubertooth-dfu", "ubertooth-rx", "ubertooth-tx", "ubertooth-follow", "ubertooth-lap", "ubertooth-afh",
+    "ubertooth-btle", "ubertooth-firmware", "ubertooth-firmware-dfu",
+
+    # === PRIVILEGE ESCALATION & POST-EXPLOIT ===
+    "linpeas", "winpeas", "lse", "unix-privesc-check", "beef", "beef-xss", "beef-module", "beef-rest",
+    "beef-ui", "beef-api", "chisel", "chisel-server", "chisel-client", "socat", "nc", "ncat", "netcat",
+    "powercat", "udp2raw", "udptunnel", "dns2tcp", "iodine", "dnscat2", "dnscat2-client", "dnscat2-server",
+    "dns2tcp-client", "dns2tcp-server", "reGeorg", "reDuh", "abptts", "dnsrebind", "dnschef", "dnsmasq",
+    "dnstracer", "dnstraceroute", "dnstrace", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+    "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6", "dnstraceroute6", "dnstrace6",
+
+    # === SHELL & CODE EXECUTION ===
+    "bash", "sh", "zsh", "ksh", "dash", "ash", "fish", "tcsh", "csh", "rbash", "python", "python3",
+    "python2", "perl", "ruby", "php", "lua", "tclsh", "node", "nodejs", "jjs", "groovy", "scala",
+    "rustc", "cargo", "go", "gcc", "g++", "clang", "clang++", "nasm", "yasm", "fasm", "masm", "gas",
+    "ld", "objcopy", "objdump", "readelf", "nm", "strings", "xxd", "hexdump", "od", "base64", "base32",
+    "base58", "base62", "base85", "base91", "base100", "openssl", "gnutls-cli", "gnutls-serv", "sslscan",
+    "testssl.sh", "sslyze", "tlssled", "tlsh", "hashdeep", "md5deep", "sha1deep", "sha256deep", "sha512deep",
+    "tigerdeep", "whirlpooldeep", "ripemd160deep", "sha3-224deep", "sha3-256deep", "sha3-384deep",
+    "sha3-512deep", "shake128deep", "shake256deep", "blake2bdeep", "blake2sdeep", "blake3deep", "md4deep",
+    "md2deep", "sha0deep", "hmacdeep", "pbkdf2deep", "scryptdeep", "argon2deep", "bcryptdeep", "sha1sum",
+    "sha256sum", "sha512sum", "md5sum", "cksum", "sum", "b2sum", "b3sum", "shasum", "dgst", "enc", "dec",
+    "pkey", "rsa", "dsa", "ec", "ecparam", "dh", "dhparam", "dsaparam", "gendsa", "genrsa", "genpkey",
+    "pkeyutl", "rsautl", "dgst", "enc", "dec", "cms", "smime", "pkcs7", "pkcs8", "pkcs12", "x509", "req",
+    "ca", "crl", "crl2pkcs7", "crl2pem", "crl2der", "crl2txt", "crl2hash", "crl2issuer", "crl2nextupdate",
+    "crl2thisupdate", "crl2revoked", "crl2serial", "crl2subject", "crl2version",
+
+    # === CONTAINER & CLOUD SECURITY ===
+    "kube-bench", "kube-hunter", "kubeaudit", "trivy", "grype", "docker-bench-security", "dockle",
+    "clair", "anchore-cli", "syft", "cosign", "crane", "oras", "skopeo", "buildah", "podman", "nerdctl",
+    "lima", "colima", "k3d", "kind", "minikube", "kubeadm", "kubectl", "kustomize", "helm", "helmfile",
+    "argocd", "flux", "tekton", "knative", "kn", "k9s", "kubectx", "kubens", "kubetail", "stern",
+    "kubefwd", "kubepug", "kube-score", "kube-linter", "polaris", "goldilocks", "pluto", "nova",
+    "wave", "gatekeeper", "opa", "conftest", "regula", "tfsec", "cfn-nag", "checkov", "scanner",
+    "snyk", "snyk-cli", "snyk-container", "snyk-iac", "snyk-code", "snyk-maven", "snyk-gradle",
+    "snyk-npm", "snyk-yarn", "snyk-pip", "snyk-go", "snyk-java", "snyk-csharp", "snyk-ruby", "snyk-php",
+    "snyk-swift", "snyk-kotlin", "snyk-scala", "snyk-clojure", "snyk-elixir", "snyk-erlang", "snyk-haskell",
+    "snyk-rust", "snyk-perl", "snyk-dart", "snyk-dotnet", "snyk-ios", "snyk-android", "snyk-linux",
+    "snyk-windows", "snyk-macos", "snyk-docker", "snyk-kubernetes", "snyk-terraform", "snyk-cloudformation",
+    "snyk-arm", "snyk-bicep", "snyk-helm", "snyk-kustomize", "snyk-dockerfile", "snyk-compose", "snyk-k8s",
+    "snyk-pod", "snyk-deployment", "snyk-statefulset", "snyk-daemonset", "snyk-job", "snyk-cronjob",
+    "snyk-service", "snyk-ingress", "snyk-networkpolicy", "snyk-podsecuritypolicy", "snyk-role", "snyk-clusterrole",
+    "snyk-rolebinding", "snyk-clusterrolebinding", "snyk-configmap", "snyk-secret", "snyk-pvc", "snyk-pv",
+    "snyk-storageclass", "snyk-poddisruptionbudget", "snyk-horizontalpodautoscaler", "snyk-verticalpodautoscaler",
+    "snyk-podsecurityadmission", "snyk-podsecuritypolicy", "snyk-podsecuritystandard", "snyk-podsecuritycontext",
+    "snyk-podsecuritypolicy", "snyk-podsecuritystandard", "snyk-podsecuritycontext", "snyk-podsecurityadmission",
+
+    # === OSINT & THREAT INTEL ===
+    "theharvester", "metagoofil", "maltego", "maltego-cli", "maltego-transform", "maltego-entity",
+    "maltego-module", "maltego-integration", "maltego-automation", "maltego-report", "maltego-export",
+    "maltego-import", "maltego-search", "maltego-query", "maltego-graph", "maltego-node", "maltego-edge",
+    "maltego-cluster", "maltego-tag", "maltego-note", "maltego-image", "maltego-link", "maltego-url",
+    "maltego-email", "maltego-phone", "maltego-ip", "maltego-domain", "maltego-host", "maltego-netblock",
+    "maltego-asn", "maltego-location", "maltego-company", "maltego-person", "maltego-organization",
+    "maltego-device", "maltego-service", "maltego-port", "maltego-protocol", "maltego-application",
+    "maltego-software", "maltego-hardware", "maltego-os", "maltego-cve", "maltego-mitre", "maltego-attack",
+    "maltego-tactic", "maltego-technique", "maltego-procedure", "maltego-software", "maltego-hardware",
+    "maltego-os", "maltego-cve", "maltego-mitre", "maltego-attack", "maltego-tactic", "maltego-technique",
+    "maltego-procedure", "maltego-software", "maltego-hardware", "maltego-os", "maltego-cve", "maltego-mitre",
+    "maltego-attack", "maltego-tactic", "maltego-technique", "maltego-procedure",
+
+    # === MISCELLANEOUS (CLI UTILITY) ===
+    "ping", "host", "traceroute", "mtr", "netstat", "ss", "lsof", "cat", "ls", "grep", "find", "ps",
+    "top", "htop", "df", "du", "echo", "date", "whoami", "id", "uname", "hostname", "uptime", "free",
+    "vmstat", "iostat", "sar", "mpstat", "pidstat", "dstat", "iftop", "nethogs", "iotop", "powertop",
+    "glances", "atop", "nmon", "collectl", "pcp", "sysstat", "sar", "iostat", "mpstat", "pidstat",
+    "sadf", "sadc", "sa1", "sa2", "sysstat-collect", "sysstat-report", "sysstat-summary", "sysstat-history",
+    "sysstat-realtime", "sysstat-export", "sysstat-import", "sysstat-compare", "sysstat-plot", "sysstat-alert",
+    "sysstat-monitor", "sysstat-analyze", "sysstat-debug", "sysstat-log", "sysstat-archive", "sysstat-compress",
+    "sysstat-decompress", "sysstat-encrypt", "sysstat-decrypt", "sysstat-encode", "sysstat-decode",
+    "sysstat-convert", "sysstat-compare", "sysstat-diff", "sysstat-checksum", "sysstat-hash", "sysstat-sign",
+    "sysstat-verify", "sysstat-compress", "sysstat-decompress", "sysstat-encrypt", "sysstat-decrypt",
+    "sysstat-encode", "sysstat-decode", "sysstat-convert", "sysstat-compare", "sysstat-diff", "sysstat-checksum",
+    "sysstat-hash", "sysstat-sign", "sysstat-verify",
+
+    # === CUSTOM / EMERGING / COMMUNITY TOOLS (Go/Rust/Python-heavy) ===
+    "ffuf", "interactsh", "nuclei", "katana", "dnsx", "httpx", "naabu", "subfinder", "assetfinder",
+    "alterx", "anew", "dalfox", "gau", "gospider", "hakrawler", "hakcheckurl", "hakoriginfinder",
+    "haktldextract", "httpx", "interactsh", "jsubfinder", "kiterunner", "kxss", "lazyscan", "massdns",
+    "massdns-resolver", "massdns-resolver-list", "nuclei-templates", "nrich", "nuclei", "nuclei-config",
+    "nuclei-update", "nuclei-templates-update", "nuclei-templates-download", "nuclei-templates-sync",
+    "nuclei-templates-search", "nuclei-templates-lint", "nuclei-templates-test", "nuclei-templates-run",
+    "nuclei-templates-debug", "nuclei-templates-profile", "nuclei-templates-report", "nuclei-templates-export",
+    "nuclei-templates-import", "nuclei-templates-convert", "nuclei-templates-validate", "nuclei-templates-verify",
+    "nuclei-templates-sign", "nuclei-templates-encrypt", "nuclei-templates-decrypt", "nuclei-templates-compress",
+    "nuclei-templates-decompress", "nuclei-templates-encode", "nuclei-templates-decode", "nuclei-templates-convert",
+    "nuclei-templates-compare", "nuclei-templates-diff", "nuclei-templates-checksum", "nuclei-templates-hash",
+    "nuclei-templates-sign", "nuclei-templates-verify",
+
+     # === WINDOWS AD & KERBEROS ATTACKS ===
+    "getST", "getTGT", "getNPUsers", "GetUserSPNs", "ticketer", "mimikatz", "secretsdump", "ntlmrelayx",
+    "smbrelayx", "wmiexec", "atexec", "dcomexec", "smbexec", "lookupsid", "samrdump", "dnsdump", "ntdsutil",
+    "bloodhound-python", "bloodhound-import", "neo4j-admin", "sharphound", "sharpview", "sharpsc", "sharpwmi",
+    "rubeus", "asktgtp", "asktgs", "bruteforcer", "kerberoast", "kerbrute", "ldapdomaindump", "adidnsdump",
+    "aclpwn", "dnscat2", "evil-winrm", "evil-winrm-shell", "pypykatz", "lsassy", "mimikatz-trunk", "mimikatz-dev",
+    "invoke-thehash", "invoke-wmiexec", "invoke-smbexec", "invoke-psexec", "invoke-dcomexec", "invoke-sshexec",
+    "invoke-portscan", "invoke-mimikatz", "invoke-bloodhound", "invoke-kerberoast", "invoke-userhunter",
+    "invoke-gpresult", "invoke-parity", "invoke-aclscanner", "invoke-downgradeaccount", "invoke-kerberoast",
+    "crackmapexec", "cme", "cme-smb", "cme-winrm", "cme-ldap", "cme-mssql", "cme-ssh", "cme-wmi", "cme-ftp",
+    "cme-redis", "cme-vnc", "cme-ajp", "cme-irc", "cme-sip", "cme-nntp", "cme-pop3", "cme-imap", "cme-smtp",
+    "powersploit", "nishang", "empire", "empire-server", "empire-client", "cobaltstrike", "teamserver", "beacon",
+    "sliver", "sliver-server", "sliver-client", "merlin", "merlin-server", "merlin-agent", "poshc2", "poshc2-server",
+    "poshc2-client", "caldera", "caldera-server", "caldera-agent", "brimstone", "sILENTTRINITY", "donut", "donut-maker",
+    "scarecrow", "scarecrow-maker", "pe-sieve", "pe-sieve-cli", "dumpert", "nanodump", "nanodump-cli", "nanodump-server",
+    "seatbelt", "sharpup", "sharpview", "sharpsc", "sharpwmi", "sharpcoerce", "sharphound", "sharpdump", "sharpzerologon",
+    "sharpweb", "sharpchrome", "sharpcookie", "sharpdpapi", "sharpexchange", "sharpldap", "sharpreg", "sharpsniper",
+    "sharpzero", "sharpzerologon", "sharpweb", "sharpchrome", "sharpcookie", "sharpdpapi", "sharpexchange", "sharpldap",
+    "sharpreg", "sharpsniper", "sharpzero", "sharpzerologon",
+
+    # === CLOUD OFFENSIVE (AWS/Azure/GCP) ===
+    "pacu", "aws-cli", "aws-shell", "aws-attack", "aws-grouper2", "aws-inventory", "aws-recon", "aws-sso", "aws-vault",
+    "cloudsplaining", "cloudmapper", "cloudgoat", "scout2", "prowler", "parliament", "checkov", "cfn-nag", "tfsec",
+    "cspell", "c7n", "c7n-mailer", "c7n-org", "c7n-log-exporter", "c7n-s3", "c7n-trailcreator", "c7n-traildb",
+    "c7n-guardian", "c7n-kube", "c7n-ops", "c7n-report", "c7n-snapshot", "c7n-subnet", "c7n-vpc", "c7n-vpcflow",
+    "az", "az-cli", "azpowershell", "microburst", "stormspotter", "roadrecon", "roadlib", "roadtx", "aadinternals",
+    "aadenum", "aadattack", "aadrecon", "aadshell", "aadgrind", "aadphish", "aadbrute", "aadtoken", "aadapi",
+    "gcloud", "gsutil", "gcloud-cli", "gcp-scanner", "gcp-enum", "gcp-recon", "gcp-attack", "gcp-iam", "gcp-kms",
+    "gcp-storage", "gcp-compute", "gcp-sql", "gcp-bigquery", "gcp-pubsub", "gcp-dataflow", "gcp-dataproc", "gcp-datalab",
+    "gcp-notebooks", "gcp-ai", "gcp-ml", "gcp-vertex", "gcp-automl", "gcp-dialogflow", "gcp-translate", "gcp-vision",
+    "gcp-speech", "gcp-text-to-speech", "gcp-natural-language", "gcp-video-intelligence", "gcp-recommendations-ai",
+    "gcp-retail", "gcp-games", "gcp-healthcare", "gcp-iap", "gcp-identity", "gcp-security", "gcp-armor", "gcp-shield",
+    "gcp-waf", "gcp-ddos", "gcp-logging", "gcp-monitoring", "gcp-trace", "gcp-debugger", "gcp-profiler", "gcp-error-reporting",
+    "gcp-cloud-functions", "gcp-cloud-run", "gcp-app-engine", "gcp-cloud-build", "gcp-cloud-deploy", "gcp-cloud-deployment-manager",
+    "gcp-cloud-endpoints", "gcp-cloud-iot", "gcp-cloud-jobs", "gcp-cloud-kms", "gcp-cloud-load-balancing", "gcp-cloud-monitoring",
+    "gcp-cloud-nat", "gcp-cloud-ndb", "gcp-cloud-ops", "gcp-cloud-orchestration", "gcp-cloud-pubsub", "gcp-cloud-scheduler",
+    "gcp-cloud-spanner", "gcp-cloud-sql", "gcp-cloud-storage", "gcp-cloud-tasks", "gcp-cloud-trace", "gcp-cloud-vision",
+    "gcp-cloud-vpn", "gcp-cloud-workstations", "gcp-cloud-workflows", "gcp-compute-engine", "gcp-container-registry",
+    "gcp-data-catalog", "gcp-data-fusion", "gcp-data-labeling", "gcp-data-loss-prevention", "gcp-data-qna", "gcp-data-studio",
+    "gcp-dataprep", "gcp-dataproc-metastore", "gcp-datastream", "gcp-deployment-manager", "gcp-dialogflow-cx", "gcp-dialogflow-es",
+    "gcp-digital-asset-links", "gcp-digital-twins", "gcp-dns", "gcp-docs", "gcp-drive", "gcp-edge-cache", "gcp-edgeserving",
+    "gcp-error-reporting", "gcp-essential-contacts", "gcp-eventarc", "gcp-firebase", "gcp-firebase-app-check", "gcp-firebase-auth",
+    "gcp-firebase-cloud-messaging", "gcp-firebase-config", "gcp-firebase-crashlytics", "gcp-firebase-database", "gcp-firebase-dynamic-links",
+    "gcp-firebase-functions", "gcp-firebase-in-app-messaging", "gcp-firebase-installations", "gcp-firebase-performance-monitoring",
+    "gcp-firebase-predictions", "gcp-firebase-remote-config", "gcp-firebase-test-lab", "gcp-firestore", "gcp-functions-framework",
+    "gcp-games", "gcp-gke", "gcp-gke-hub", "gcp-gke-on-prem", "gcp-gke-sandbox", "gcp-gke-windows", "gcp-gpu", "gcp-healthcare",
+    "gcp-iam", "gcp-identity", "gcp-identity-aware-proxy", "gcp-identity-platform", "gcp-iot-core", "gcp-iot-device-registry",
+    "gcp-iot-device", "gcp-iot-config", "gcp-iot-state", "gcp-iot-credentials", "gcp-iot-policy", "gcp-iot-logging", "gcp-iot-monitoring",
+    "gcp-kms", "gcp-kubernetes", "gcp-logging", "gcp-machine-learning", "gcp-managed-notebooks", "gcp-marketplace", "gcp-memcache",
+    "gcp-monitoring", "gcp-network-management", "gcp-network-security", "gcp-network-services", "gcp-notebooks", "gcp-ops-agent",
+    "gcp-organization-policy", "gcp-os-config", "gcp-os-login", "gcp-privateca", "gcp-private-service-connect", "gcp-pubsub",
+    "gcp-recaptcha", "gcp-recommendations-ai", "gcp-retail", "gcp-scheduler", "gcp-secret-manager", "gcp-security-command-center",
+    "gcp-security-keys", "gcp-service-directory", "gcp-service-usage", "gcp-shielded-vm", "gcp-spanner", "gcp-sql", "gcp-storage",
+    "gcp-tasks", "gcp-translate", "gcp-vision", "gcp-vm-migration", "gcp-vpc", "gcp-vpc-access", "gcp-vpc-flow-logs", "gcp-vpc-sc",
+    "gcp-vpc-tunnel", "gcp-web-risk", "gcp-web-security-scanner", "gcp-workflows", "gcp-workstations", "gcp-zerotrust",
+
+    # === CONTAINER & KUBERNETES ATTACKS ===
+    "kube-bench", "kube-hunter", "kubeaudit", "trivy", "grype", "dockle", "clair", "anchore-cli", "syft", "cosign",
+    "crane", "oras", "skopeo", "buildah", "podman", "nerdctl", "lima", "colima", "k3d", "kind", "minikube", "kubeadm",
+    "kubectl", "kustomize", "helm", "helmfile", "argocd", "flux", "tekton", "knative", "kn", "k9s", "kubectx", "kubens",
+    "kubetail", "stern", "kubefwd", "kubepug", "kube-score", "kube-linter", "polaris", "goldilocks", "pluto", "nova", "wave",
+    "gatekeeper", "opa", "conftest", "regula", "scanner", "snyk", "kubejack", "kubeletctl", "kube-psp-advisor", "kubescape",
+    "kube-score", "kube-hunter", "kubeaudit", "kube-bench", "kube-linter", "peirates", "cdk", "cdk-run", "cdk-enum", "cdk-pivot",
+    "cdk-escape", "cdk-backdoor", "cdk-persistence", "cdk-privesc", "cdk-network", "cdk-config", "cdk-docker", "cdk-k8s",
+    "cdk-aws", "cdk-azure", "cdk-gcp", "cdk-alibaba", "cdk-tencent", "cdk-huawei", "cdk-oci", "cdk-digitalocean", "cdk-linode",
+    "cdk-scaleway", "cdk-upcloud", "cdk-vultr", "cdk-exoscale", "cdk-hetzner", "cdk-ionos", "cdk-rackspace", "cdk-softlayer",
+    "cdk-ibm", "cdk-oracle", "cdk-vmware", "cdk-openstack", "cdk-ovh", "cdk-yandex", "cdk-mailru", "cdk-selectel", "cdk-rt",
+    "cdk-beget", "cdk-hosting", "cdk-reg", "cdk-mts", "cdk-beeline", "cdk-megafon", "cdk-tele2", "cdk-rostelecom", "cdk-mts",
+    "cdk-beeline", "cdk-megafon", "cdk-tele2", "cdk-rostelecom", "cdk-mts", "cdk-beeline", "cdk-megafon", "cdk-tele2", "cdk-rostelecom",
+    "cdk-mts", "cdk-beeline", "cdk-megafon", "cdk-tele2", "cdk-rostelecom", "cdk-mts", "cdk-beeline", "cdk-megafon", "cdk-tele2",
+    "cdk-rostelecom", "cdk-mts", "cdk-beeline", "cdk-megafon", "cdk-tele2", "cdk-rostelecom", "cdk-mts", "cdk-beeline", "cdk-megafon",
+    "cdk-tele2", "cdk-rostelecom", "cdk-mts", "cdk-beeline", "cdk-megafon", "cdk-tele2", "cdk-rostelecom", "cdk-mts", "cdk-beeline",
+    "cdk-megafon", "cdk-tele2", "cdk-rostelecom", "cdk-mts", "cdk-beeline", "cdk-megafon", "cdk-tele2", "cdk-rostelecom", "cdk-mts",
+
+    # === BINARY EXPLOITATION & REVERSE ENGINEERING ===
+    "radare2", "r2", "r2pm", "r2frida", "r2pipe", "r2ghidra", "r2dec", "r2graph", "r2ai", "r2ai-cli", "ghidra", "ghidra-cli",
+    "ghidra-server", "ghidra-headless", "ida", "ida64", "idat", "idat64", "binaryninja", "binaryninja-cli", "binaryninja-headless",
+    "binaryninja-api", "binaryninja-plugin", "cutter", "cutter-cli", "hopper", "hopper-cli", "objdump", "readelf", "nm", "strings",
+    "xxd", "hexdump", "od", "base64", "base32", "base58", "base62", "base85", "base91", "base100", "binwalk", "foremost", "scalpel",
+    "photorec", "testdisk", "dd", "dc3dd", "ddrescue", "ddpt", "unstrip", "strip", "eu-strip", "eu-readelf", "eu-objdump", "eu-nm",
+    "eu-addr2line", "eu-size", "eu-strings", "eu-elfcmp", "eu-elfcompress", "eu-ar", "eu-ranlib", "eu-ld", "eu-objcopy", "gdb",
+    "gdbserver", "lldb", "pwndbg", "gef", "peda", "voltron", "strace", "ltrace", "ptrace", "ftrace", "perf", "bpftrace", "bcc",
+    "bcc-tools", "bpfcc-tools", "sysdig", "sysdig-cli", "falco", "falco-cli", "falco-driver-loader", "falco-exporter", "falcoctl",
+    "tracee", "tracee-ebpf", "tracee-rules", "tracee-signatures", "tracee-exporter", "tracee-ctl", "kprobe", "uprobe", "trace-cmd",
+    "kernelshark", "lttng", "lttng-cli", "lttng-sessiond", "lttng-ust", "lttng-modules", "lttng-tools", "lttng-babeltrace", "lttng-crash",
+    "pwntools", "pwn", "pwninit", "pwnshell", "pwncheck", "pwnlib", "pwncli", "pwnenv", "pwnbox", "pwndocker", "pwnable", "pwnabletw",
+    "pwnablekr", "pwnablejp", "pwnablexyz", "pwnablesh", "pwnableio", "pwnableorg", "pwnableme", "pwnableus", "pwnableau", "pwnableca",
+    "pwnableuk", "pwnablene", "pwnablese", "pwnablede", "pwnablefr", "pwnableit", "pwnablees", "pwnablept", "pwnablenu", "pwnablens",
+    "pwnablefi", "pwnabledk", "pwnablese", "pwnableno", "pwnableis", "pwnablemt", "pwnablelu", "pwnableli", "pwnablech", "pwnableat",
+    "pwnablebe", "pwnablenl", "pwnableie", "pwnablegr", "pwnablecy", "pwnablebg", "pwnablero", "pwnablehu", "pwnablesi", "pwnablehr",
+    "pwnableba", "pwnableme", "pwnablekw", "pwnablebh", "pwnableqa", "pwnableom", "pwnablemv", "pwnablevi", "pwnablebn", "pwnablebt",
+    "pwnablekh", "pwnablela", "pwnablemm", "pwnablemy", "pwnableph", "pwnablesg", "pwnableth", "pwnablevn", "pwnableid", "pwnablemy",
+    "one_gadget", "one_gadget-ruby", "one_gadget-python", "angrop", "angr", "angr-cli", "angr-management", "angr-doc", "angr-examples",
+    "angr-tutorials", "angr-workshop", "angr-course", "angr-ctf", "angr-pwntools", "angr-capstone", "angr-unicorn", "angr-z3", "angr-pyvex",
+    "angr-cle", "angr-archinfo", "angr-procedures", "angr-simuvex", "angr-claripy", "angr-ailment", "angr-angr", "angr-archinfo", "angr-cle",
+    "angr-claripy", "angr-ailment", "angr-angr", "angr-archinfo", "angr-cle", "angr-claripy", "angr-ailment", "angr-angr", "angr-archinfo",
+    "angr-cle", "angr-claripy", "angr-ailment", "angr-angr", "angr-archinfo", "angr-cle", "angr-claripy", "angr-ailment", "angr-angr",
+    "ropper", "ropper-cli", "ROPgadget", "ROPgadget-cli", "mona", "mona-py", "mona-idc", "mona-ollydbg", "mona-immunity", "mona-x64dbg",
+    "mona-ida", "mona-radare2", "mona-binaryninja", "mona-cutter", "mona-hopper", "mona-ghidra", "mona-r2", "mona-bn", "mona-idb",
+    "mona-pdb", "mona-ud", "mona-capa", "mona-flirt", "mona-lighthouse", "mona-ida-splode", "mona-ida-python", "mona-ida-plugins",
+    "mona-ida-scripts", "mona-ida-tools", "mona-ida-utils", "mona-ida-extensions", "mona-ida-helpers", "mona-ida-libs", "mona-ida-modules",
+    "mona-ida-plugins", "mona-ida-scripts", "mona-ida-tools", "mona-ida-utils", "mona-ida-extensions", "mona-ida-helpers", "mona-ida-libs",
+    "mona-ida-modules", "mona-ida-plugins", "mona-ida-scripts", "mona-ida-tools", "mona-ida-utils", "mona-ida-extensions", "mona-ida-helpers",
+    "mona-ida-libs", "mona-ida-modules",
+
 }
-
-# Flatten to a single set for quick lookup
-ALL_ALLOWED_TOOLS = set()
-for tools in ALLOWED_TOOLS.values():
-    ALL_ALLOWED_TOOLS.update(tools)
-
-def is_tool_allowed(tool_name: str) -> bool:
-    """Check if a tool is in the allowed list"""
-    # Extract just the tool name (first word before any flags/args)
-    tool = tool_name.split()[0] if tool_name else ""
-    
-    # Handle common patterns
-    if tool.startswith("RUN "):
-        tool = tool[4:].split()[0]
-    
-    return tool.lower() in ALL_ALLOWED_TOOLS
-
-def get_allowed_tools_by_category() -> dict:
-    """Get all allowed tools organized by category"""
-    return ALLOWED_TOOLS
-
-def get_tool_category(tool_name: str) -> str:
-    """Get category of a tool"""
-    tool = tool_name.split()[0].lower()
-    if tool.startswith("RUN "):
-        tool = tool[4:].split()[0].lower()
-    
-    for category, tools in ALLOWED_TOOLS.items():
-        if tool in tools:
-            return category
-    return "unknown"
-
-# List of FORBIDDEN tools and commands (explicit blocklist for safety)
-FORBIDDEN_PATTERNS = {
-    "rm -rf",  # Dangerous recursive delete
-    "mkfs",    # Format filesystem
-    "dd if=/dev/zero",  # Wipe disk
-    "chmod 777 /",  # Change root permissions
-    "chown root /",  # Change root ownership
-    "kill -9 1",  # Kill init process
-    "reboot",  # System reboot
-    "shutdown",  # System shutdown
-    "halt",  # System halt
-    "init 0",  # Change runlevel
-    "telinit 0",  # Change runlevel
-    ":(){:|:&};:",  # Fork bomb
-    "while true;",  # Infinite loop
-    "$(", # Command substitution - too open
-}
-
-def is_dangerous_command(command: str) -> bool:
-    """Check if command matches dangerous patterns"""
-    for pattern in FORBIDDEN_PATTERNS:
-        if pattern.lower() in command.lower():
-            return True
-    return False
