@@ -168,6 +168,31 @@ async def resume_agent(agent_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/agents/{agent_id}/history")
+async def get_agent_history(agent_id: str):
+    """Get instruction history for a specific agent"""
+    try:
+        history = await agent_manager.get_agent_instruction_history(agent_id)
+        return {
+            "agent_id": agent_id,
+            "history": history,
+            "total": len(history)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/history")
+async def get_all_history():
+    """Get combined instruction history from all agents"""
+    try:
+        history = await agent_manager.get_all_instruction_history()
+        return {
+            "history": history,
+            "total": len(history)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/resources")
 async def get_resources():
     """Get system resource usage"""

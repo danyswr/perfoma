@@ -59,6 +59,7 @@ class AgentWorker:
         self.last_execute = "Not started"
         self.execution_history: List[Dict] = []
         self.context_history: List[Dict] = []
+        self.instruction_history: List[Dict] = []  # Store all model instructions
         self.paused = False
         self.stopped = False
         
@@ -595,7 +596,7 @@ Use <END!> when mission objectives are met.
         self.status = "stopped"
     
     async def _broadcast_model_instruction(self, response: str):
-        """Broadcast model instruction to WebSocket clients"""
+        """Broadcast model instruction to WebSocket clients and store in history"""
         try:
             from server.ws import manager
             
@@ -608,6 +609,22 @@ Use <END!> when mission objectives are met.
             
             # Extract a summary of the response (first 500 chars)
             summary = response[:500] + ("..." if len(response) > 500 else "")
+            timestamp = datetime.now().isoformat()
+            
+            # Store in instruction history
+            instruction_record = {
+                "id": len(self.instruction_history) + 1,
+                "instruction": summary,
+                "full_response": response,
+                "instruction_type": instruction_type,
+                "timestamp": timestamp,
+                "model_name": self.model_name
+            }
+            self.instruction_history.append(instruction_record)
+            
+            # Keep only last 100 instructions
+            if len(self.instruction_history) > 100:
+                self.instruction_history = self.instruction_history[-100:]
             
             await manager.broadcast({
                 "type": "model_instruction",
@@ -615,8 +632,13 @@ Use <END!> when mission objectives are met.
                 "model_name": self.model_name,
                 "instruction": summary,
                 "instruction_type": instruction_type,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": timestamp,
+                "history_id": instruction_record["id"]
             })
-        except Exception as e:
+        except Exception:
             # Silent fail for broadcast errors
             pass
+    
+    def get_instruction_history(self) -> List[Dict]:
+        """Get the instruction history for this agent"""
+        return self.instruction_history

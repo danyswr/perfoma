@@ -233,6 +233,27 @@ class AgentManager:
         
         return True
     
+    async def get_agent_instruction_history(self, agent_id: str) -> List[Dict]:
+        """Get instruction history for a specific agent"""
+        if agent_id not in self.agents:
+            return []
+        
+        agent = self.agents[agent_id]
+        return agent.get_instruction_history()
+    
+    async def get_all_instruction_history(self) -> List[Dict]:
+        """Get combined instruction history from all agents"""
+        all_history = []
+        for agent_id, agent in self.agents.items():
+            history = agent.get_instruction_history()
+            for item in history:
+                item["agent_id"] = agent_id
+            all_history.extend(history)
+        
+        # Sort by timestamp
+        all_history.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        return all_history[:100]  # Return last 100 instructions
+    
     async def get_findings(self) -> List[Dict]:
         """Get all findings from shared knowledge base"""
         return self.shared_knowledge.get("findings", [])

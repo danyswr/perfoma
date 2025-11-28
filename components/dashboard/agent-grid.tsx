@@ -307,12 +307,22 @@ interface AgentDetailDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
+interface InstructionHistoryItem {
+  id: number
+  instruction: string
+  instruction_type: string
+  timestamp: string
+  model_name: string
+}
+
 function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps) {
   const [cpuHistory, setCpuHistory] = useState<{value: number, time: string}[]>([])
   const [memoryHistory, setMemoryHistory] = useState<{value: number, time: string}[]>([])
   const [diskHistory, setDiskHistory] = useState<{value: number, time: string}[]>([])
   const [networkHistory, setNetworkHistory] = useState<{value: number, time: string}[]>([])
   const [displayTime, setDisplayTime] = useState(agent?.executionTime || "00:00")
+  const [instructionHistory, setInstructionHistory] = useState<InstructionHistoryItem[]>([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   useEffect(() => {
     if (!agent || !open) return
@@ -344,6 +354,28 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
 
     generateData()
     const interval = setInterval(generateData, 2000)
+    return () => clearInterval(interval)
+  }, [agent, open])
+
+  useEffect(() => {
+    if (!agent || !open) return
+
+    const fetchHistory = async () => {
+      setLoadingHistory(true)
+      try {
+        const res = await fetch(`/api/agents/${agent.id}/history`)
+        if (res.ok) {
+          const data = await res.json()
+          setInstructionHistory(data.history || [])
+        }
+      } catch {
+      } finally {
+        setLoadingHistory(false)
+      }
+    }
+
+    fetchHistory()
+    const interval = setInterval(fetchHistory, 5000)
     return () => clearInterval(interval)
   }, [agent, open])
 
@@ -597,6 +629,60 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
             <pre className="text-xs font-mono text-green-400/80 whitespace-pre-wrap">
               {agent.lastCommand}
             </pre>
+          </div>
+
+          <div className="p-3 rounded-lg border bg-card">
+            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" />
+              Instruction History
+              <Badge variant="outline" className="text-xs ml-auto">
+                {instructionHistory.length} instructions
+              </Badge>
+            </h4>
+            <ScrollArea className="h-40">
+              {loadingHistory ? (
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                  Loading history...
+                </div>
+              ) : instructionHistory.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                  No instructions yet
+                </div>
+              ) : (
+                <div className="space-y-2 pr-2">
+                  {instructionHistory.slice().reverse().map((item) => (
+                    <div 
+                      key={item.id} 
+                      className={`p-2 rounded border text-xs ${
+                        item.instruction_type === 'command' 
+                          ? 'bg-emerald-500/10 border-emerald-500/20' 
+                          : item.instruction_type === 'decision'
+                          ? 'bg-amber-500/10 border-amber-500/20'
+                          : 'bg-blue-500/10 border-blue-500/20'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <Badge 
+                          variant="outline" 
+                          className={`text-[10px] ${
+                            item.instruction_type === 'command' ? 'text-emerald-400' : 
+                            item.instruction_type === 'decision' ? 'text-amber-400' : 'text-blue-400'
+                          }`}
+                        >
+                          {item.instruction_type}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">
+                          {new Date(item.timestamp).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <p className="font-mono text-[11px] line-clamp-2 text-muted-foreground">
+                        {item.instruction}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
           </div>
 
           <div className="grid grid-cols-3 gap-3">

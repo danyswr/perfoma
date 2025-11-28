@@ -198,6 +198,25 @@ export const api = {
       return { error: "Cannot connect to backend. Make sure the server is running." }
     }
   },
+
+  // Instruction History
+  async getAgentHistory(agentId: string) {
+    try {
+      const res = await fetch(`${API_BASE}/api/agents/${agentId}/history`)
+      return handleResponse<{ agent_id: string; history: InstructionHistory[]; total: number }>(res)
+    } catch {
+      return { error: "Cannot fetch agent history", data: { agent_id: agentId, history: [], total: 0 } }
+    }
+  },
+
+  async getAllHistory() {
+    try {
+      const res = await fetch(`${API_BASE}/api/history`)
+      return handleResponse<{ history: InstructionHistory[]; total: number }>(res)
+    } catch {
+      return { error: "Cannot fetch history", data: { history: [], total: 0 } }
+    }
+  },
 }
 
 export interface AgentResponse {
@@ -256,4 +275,14 @@ export interface ModelInfo {
   id: string
   name: string
   provider: string
+}
+
+export interface InstructionHistory {
+  id: number
+  instruction: string
+  full_response?: string
+  instruction_type: "analysis" | "command" | "decision"
+  timestamp: string
+  model_name: string
+  agent_id?: string
 }
