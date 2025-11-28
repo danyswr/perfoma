@@ -60,17 +60,22 @@ export default function Dashboard() {
   const [apiTestPassed, setApiTestPassed] = useState(false)
 
   useEffect(() => {
+    let isMounted = true
     const checkHealth = async () => {
+      if (!isMounted) return
       setBackendStatus("checking")
       const isHealthy = await checkBackendHealth()
-      setBackendStatus(isHealthy ? "online" : "offline")
+      if (isMounted) {
+        setBackendStatus(isHealthy ? "online" : "offline")
+      }
     }
     checkHealth()
-    const interval = setInterval(() => {
-      if (backendStatus === "offline") checkHealth()
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [backendStatus])
+    const interval = setInterval(checkHealth, 5000)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, [])
 
   const handleStartMission = useCallback(async () => {
     if (config.target) {
@@ -520,12 +525,18 @@ export default function Dashboard() {
           </ScrollArea>
 
           <div className="p-4 border-t border-border shrink-0 space-y-2">
-            {!apiTestPassed && (
+            {!apiTestPassed && config.target.trim() && (
               <p className="text-xs text-yellow-500 text-center">Test API first before starting mission</p>
+            )}
+            {!config.target.trim() && (
+              <p className="text-xs text-muted-foreground text-center">Enter a target to start mission</p>
+            )}
+            {backendStatus !== "online" && (
+              <p className="text-xs text-red-500 text-center">Waiting for backend connection...</p>
             )}
             <Button
               onClick={handleStartMission}
-              disabled={!config.target || mission.active || backendStatus !== "online" || !apiTestPassed}
+              disabled={!config.target.trim() || mission.active || backendStatus !== "online"}
               className="w-full gap-2"
             >
               <Play className="w-4 h-4" />
