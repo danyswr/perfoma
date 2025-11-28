@@ -146,9 +146,10 @@ class AgentManager:
         custom_instruction: Optional[str] = None,
         stealth_mode: bool = False,
         aggressive_mode: bool = False,
-        model_name: str = "openai/gpt-4-turbo"
+        model_name: str = "openai/gpt-4-turbo",
+        auto_start: bool = True
     ) -> Optional[str]:
-        """Create a single agent manually"""
+        """Create a single agent manually and optionally start it"""
         if len(self.agents) >= 10:
             return None
         
@@ -176,6 +177,14 @@ class AgentManager:
             "system",
             {"agent_number": agent_number}
         )
+        
+        if auto_start and target:
+            asyncio.create_task(agent.start())
+            await self.logger.log_event(
+                f"Agent {agent_id} started automatically",
+                "system",
+                {"target": target}
+            )
         
         return agent_id
 

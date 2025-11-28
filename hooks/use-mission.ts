@@ -4,6 +4,21 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { api } from "@/lib/api"
 import type { Mission, MissionConfig } from "@/lib/types"
 
+const MISSION_CONFIG_KEY = "performa_mission_config"
+
+function saveMissionConfig(config: MissionConfig | null) {
+  if (typeof window === 'undefined') return
+  try {
+    if (config) {
+      localStorage.setItem(MISSION_CONFIG_KEY, JSON.stringify(config))
+    } else {
+      localStorage.removeItem(MISSION_CONFIG_KEY)
+    }
+  } catch (e) {
+    console.error("Failed to save mission config:", e)
+  }
+}
+
 const initialMission: Mission = {
   active: false,
   target: "",
@@ -39,6 +54,9 @@ export function useMission() {
   const startMission = useCallback(
     async (config: MissionConfig): Promise<string[] | null> => {
       setError(null)
+      
+      saveMissionConfig(config)
+      
       try {
         const response = await api.startMission({
           target: config.target,

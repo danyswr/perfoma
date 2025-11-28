@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Bot, Trash2, Pause, Play, Clock, Cpu, HardDrive, MoreVertical, Terminal, Maximize2, Activity, Eye, Plus } from "lucide-react"
+import { Bot, Trash2, Pause, Play, Clock, Cpu, HardDrive, MoreVertical, Terminal, Maximize2, Activity, Eye, Plus, Wifi, Timer } from "lucide-react"
 import { useAgents } from "@/hooks/use-agents"
 import type { Agent } from "@/lib/types"
 import { AnimatedProgress, LoadingDots, PulseRing, SpinnerProgress } from "@/components/ui/animated-progress"
@@ -156,6 +156,48 @@ interface AgentCardProps {
 }
 
 function AgentCard({ agent, compact, onPause, onResume, onRemove, onViewDetails }: AgentCardProps) {
+  const [displayTime, setDisplayTime] = useState(agent.executionTime)
+  
+  useEffect(() => {
+    setDisplayTime(agent.executionTime)
+  }, [agent.executionTime])
+
+  useEffect(() => {
+    if (agent.status !== "running") {
+      return
+    }
+    
+    const parseTime = (timeStr: string): number => {
+      const parts = timeStr.split(':').map(Number)
+      if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+      } else if (parts.length === 2) {
+        return parts[0] * 60 + parts[1]
+      }
+      return 0
+    }
+    
+    const formatSeconds = (totalSeconds: number): string => {
+      const hrs = Math.floor(totalSeconds / 3600)
+      const mins = Math.floor((totalSeconds % 3600) / 60)
+      const secs = totalSeconds % 60
+      
+      if (hrs > 0) {
+        return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      }
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
+    
+    let baseSeconds = parseTime(agent.executionTime)
+    
+    const interval = setInterval(() => {
+      baseSeconds += 1
+      setDisplayTime(formatSeconds(baseSeconds))
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [agent.status, agent.executionTime])
+
   const statusColors = {
     idle: "bg-muted text-muted-foreground border-border",
     running: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
@@ -176,7 +218,6 @@ function AgentCard({ agent, compact, onPause, onResume, onRemove, onViewDetails 
         agent.status === "running" ? "border-primary/20 bg-primary/5" : "border-border bg-card"
       }`}
     >
-      {/* Header */}
       <div className="flex items-center justify-between mb-1.5">
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -221,42 +262,30 @@ function AgentCard({ agent, compact, onPause, onResume, onRemove, onViewDetails 
         </DropdownMenu>
       </div>
 
-      {/* Terminal Output */}
       <div className="mb-1.5 p-1 rounded bg-black/80 font-mono text-[9px] text-green-400 truncate border border-border/50 flex items-center gap-1">
         <Terminal className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
         <span className="truncate opacity-90 line-clamp-1">{agent.lastCommand}</span>
       </div>
 
-      {/* Metrics Grid */}
       <div className="grid grid-cols-3 gap-1 mb-1.5">
-        <MetricItem icon={Clock} label="Time" value={agent.executionTime} />
         <MetricItem icon={Cpu} label="CPU" value={`${agent.cpuUsage}%`} />
         <MetricItem icon={HardDrive} label="MEM" value={`${agent.memoryUsage}MB`} />
+        <MetricItem icon={Activity} label="PROG" value={`${agent.progress}%`} />
       </div>
 
-      {/* Last Execute Time */}
-      {agent.lastExecuteTime && (
-        <div className="mb-1.5 text-[8px] text-muted-foreground flex items-center gap-1">
-          <Clock className="w-2.5 h-2.5" />
-          <span>Last: {agent.lastExecuteTime}</span>
-        </div>
-      )}
-
-      {/* Progress Bar */}
-      <div className="space-y-0.5">
-        <div className="flex justify-between text-[8px] text-muted-foreground">
-          <span className="flex items-center gap-1">
-            Task
+      <div className="p-1.5 rounded bg-muted/30 border border-border/30">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <Timer className="w-3 h-3 text-primary" />
+            <span className="text-[9px] text-muted-foreground">Execution Time</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-sm font-mono font-bold text-primary">
+              {displayTime}
+            </span>
             {agent.status === "running" && <PulseRing size="sm" className="ml-0.5" />}
-          </span>
-          <span>{agent.progress}%</span>
+          </div>
         </div>
-        <AnimatedProgress 
-          value={agent.progress} 
-          variant={agent.status === "running" ? "striped" : "default"}
-          size="sm"
-          className={agent.status === "paused" ? "opacity-50" : ""}
-        />
       </div>
     </div>
   )
@@ -281,6 +310,9 @@ interface AgentDetailDialogProps {
 function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps) {
   const [cpuHistory, setCpuHistory] = useState<{value: number, time: string}[]>([])
   const [memoryHistory, setMemoryHistory] = useState<{value: number, time: string}[]>([])
+  const [diskHistory, setDiskHistory] = useState<{value: number, time: string}[]>([])
+  const [networkHistory, setNetworkHistory] = useState<{value: number, time: string}[]>([])
+  const [displayTime, setDisplayTime] = useState(agent?.executionTime || "00:00")
 
   useEffect(() => {
     if (!agent || !open) return
@@ -290,12 +322,22 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
       const time = now.toLocaleTimeString()
       
       setCpuHistory(prev => {
-        const newData = [...prev, { value: agent.cpuUsage + Math.random() * 10 - 5, time }]
+        const newData = [...prev, { value: Math.max(0, Math.min(100, agent.cpuUsage + Math.random() * 10 - 5)), time }]
         return newData.slice(-30)
       })
       
       setMemoryHistory(prev => {
-        const newData = [...prev, { value: agent.memoryUsage + Math.random() * 20 - 10, time }]
+        const newData = [...prev, { value: Math.max(0, agent.memoryUsage + Math.random() * 20 - 10), time }]
+        return newData.slice(-30)
+      })
+
+      setDiskHistory(prev => {
+        const newData = [...prev, { value: Math.max(0, Math.min(100, 30 + Math.random() * 20)), time }]
+        return newData.slice(-30)
+      })
+
+      setNetworkHistory(prev => {
+        const newData = [...prev, { value: Math.max(0, 100 + Math.random() * 200), time }]
         return newData.slice(-30)
       })
     }
@@ -305,11 +347,59 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
     return () => clearInterval(interval)
   }, [agent, open])
 
+  useEffect(() => {
+    if (agent) {
+      setDisplayTime(agent.executionTime)
+    }
+  }, [agent?.executionTime])
+
+  useEffect(() => {
+    if (!agent || !open || agent.status !== "running") return
+    
+    const parseTime = (timeStr: string): number => {
+      const parts = timeStr.split(':').map(Number)
+      if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+      } else if (parts.length === 2) {
+        return parts[0] * 60 + parts[1]
+      }
+      return 0
+    }
+    
+    const formatSeconds = (totalSeconds: number): string => {
+      const hrs = Math.floor(totalSeconds / 3600)
+      const mins = Math.floor((totalSeconds % 3600) / 60)
+      const secs = totalSeconds % 60
+      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
+    
+    let baseSeconds = parseTime(agent.executionTime)
+    
+    const interval = setInterval(() => {
+      baseSeconds += 1
+      setDisplayTime(formatSeconds(baseSeconds))
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [agent, open, agent?.status, agent?.executionTime])
+
+  const getStatusColor = (value: number) => {
+    if (value >= 80) return "text-destructive"
+    if (value >= 60) return "text-chart-3"
+    return "text-primary"
+  }
+
+  const getProgressColor = (value: number) => {
+    if (value >= 80) return "bg-destructive"
+    if (value >= 60) return "bg-chart-3"
+    return "bg-primary"
+  }
+
   if (!agent) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot className="w-5 h-5" />
@@ -324,34 +414,42 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-4 gap-3">
-            <div className="p-3 rounded-lg bg-muted/30 border">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
               <div className="flex items-center gap-2 mb-1">
-                <Clock className="w-4 h-4 text-muted-foreground" />
+                <Timer className="w-4 h-4 text-primary" />
                 <span className="text-xs text-muted-foreground">Execution Time</span>
               </div>
-              <span className="text-lg font-mono font-semibold">{agent.executionTime}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-mono font-bold text-primary">
+                  {displayTime}
+                </span>
+                {agent.status === "running" && <PulseRing size="sm" />}
+              </div>
             </div>
             <div className="p-3 rounded-lg bg-muted/30 border">
               <div className="flex items-center gap-2 mb-1">
                 <Cpu className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">CPU Usage</span>
               </div>
-              <span className="text-lg font-mono font-semibold">{agent.cpuUsage}%</span>
+              <span className={`text-lg font-mono font-semibold ${getStatusColor(agent.cpuUsage)}`}>{agent.cpuUsage}%</span>
+              <Progress value={agent.cpuUsage} className={`h-1 mt-1 ${getProgressColor(agent.cpuUsage)}`} />
             </div>
             <div className="p-3 rounded-lg bg-muted/30 border">
               <div className="flex items-center gap-2 mb-1">
                 <HardDrive className="w-4 h-4 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">Memory</span>
               </div>
-              <span className="text-lg font-mono font-semibold">{agent.memoryUsage}MB</span>
+              <span className="text-lg font-mono font-semibold text-chart-2">{agent.memoryUsage}MB</span>
+              <Progress value={Math.min(100, agent.memoryUsage / 5)} className="h-1 mt-1 bg-chart-2" />
             </div>
             <div className="p-3 rounded-lg bg-muted/30 border">
               <div className="flex items-center gap-2 mb-1">
-                <Activity className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Progress</span>
+                <Wifi className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Network</span>
               </div>
-              <span className="text-lg font-mono font-semibold">{agent.progress}%</span>
+              <span className="text-lg font-mono font-semibold text-chart-4">{networkHistory.length > 0 ? Math.round(networkHistory[networkHistory.length - 1].value) : 0}KB/s</span>
+              <Progress value={Math.min(100, (networkHistory.length > 0 ? networkHistory[networkHistory.length - 1].value : 0) / 10)} className="h-1 mt-1 bg-chart-4" />
             </div>
           </div>
 
@@ -361,11 +459,11 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
                 <Cpu className="w-4 h-4 text-blue-500" />
                 CPU Usage History
               </h4>
-              <div className="h-32">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-32" style={{ minWidth: 200, minHeight: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={100}>
                   <AreaChart data={cpuHistory}>
                     <defs>
-                      <linearGradient id="cpuGradient" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="agentCpuGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
                       </linearGradient>
@@ -373,14 +471,15 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
                     <XAxis dataKey="time" hide />
                     <YAxis domain={[0, 100]} hide />
                     <Tooltip 
-                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
                       labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      formatter={(value: number) => [`${value.toFixed(1)}%`, 'CPU']}
                     />
                     <Area 
                       type="monotone" 
                       dataKey="value" 
                       stroke="#3b82f6" 
-                      fill="url(#cpuGradient)" 
+                      fill="url(#agentCpuGradient)" 
                       strokeWidth={2}
                     />
                   </AreaChart>
@@ -393,11 +492,11 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
                 <HardDrive className="w-4 h-4 text-emerald-500" />
                 Memory Usage History
               </h4>
-              <div className="h-32">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-32" style={{ minWidth: 200, minHeight: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={100}>
                   <AreaChart data={memoryHistory}>
                     <defs>
-                      <linearGradient id="memGradient" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="agentMemGradient" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                       </linearGradient>
@@ -405,14 +504,83 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
                     <XAxis dataKey="time" hide />
                     <YAxis domain={[0, 'auto']} hide />
                     <Tooltip 
-                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }}
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
                       labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      formatter={(value: number) => [`${value.toFixed(1)}MB`, 'Memory']}
                     />
                     <Area 
                       type="monotone" 
                       dataKey="value" 
                       stroke="#10b981" 
-                      fill="url(#memGradient)" 
+                      fill="url(#agentMemGradient)" 
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 rounded-lg border bg-card">
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                <HardDrive className="w-4 h-4 text-orange-500" />
+                Disk I/O History
+              </h4>
+              <div className="h-32" style={{ minWidth: 200, minHeight: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={100}>
+                  <AreaChart data={diskHistory}>
+                    <defs>
+                      <linearGradient id="agentDiskGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" hide />
+                    <YAxis domain={[0, 100]} hide />
+                    <Tooltip 
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                      labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      formatter={(value: number) => [`${value.toFixed(1)}%`, 'Disk I/O']}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#f97316" 
+                      fill="url(#agentDiskGradient)" 
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg border bg-card">
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                <Wifi className="w-4 h-4 text-purple-500" />
+                Network Activity
+              </h4>
+              <div className="h-32" style={{ minWidth: 200, minHeight: 100 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={100}>
+                  <AreaChart data={networkHistory}>
+                    <defs>
+                      <linearGradient id="agentNetGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" hide />
+                    <YAxis domain={[0, 'auto']} hide />
+                    <Tooltip 
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                      labelStyle={{ color: 'hsl(var(--foreground))' }}
+                      formatter={(value: number) => [`${value.toFixed(1)}KB/s`, 'Network']}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#a855f7" 
+                      fill="url(#agentNetGradient)" 
                       strokeWidth={2}
                     />
                   </AreaChart>
@@ -431,16 +599,19 @@ function AgentDetailDialog({ agent, open, onOpenChange }: AgentDetailDialogProps
             </pre>
           </div>
 
-          <div className="space-y-1">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Task Progress</span>
-              <span className="font-mono">{agent.progress}%</span>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3 rounded-lg border bg-muted/30">
+              <div className="text-xs text-muted-foreground mb-1">Target</div>
+              <div className="text-sm font-medium truncate">{agent.target || "Not set"}</div>
             </div>
-            <AnimatedProgress 
-              value={agent.progress} 
-              variant={agent.status === "running" ? "striped" : "default"}
-              size="md"
-            />
+            <div className="p-3 rounded-lg border bg-muted/30">
+              <div className="text-xs text-muted-foreground mb-1">Category</div>
+              <div className="text-sm font-medium">{agent.category || "domain"}</div>
+            </div>
+            <div className="p-3 rounded-lg border bg-muted/30">
+              <div className="text-xs text-muted-foreground mb-1">Progress</div>
+              <div className="text-sm font-medium">{agent.progress}%</div>
+            </div>
           </div>
         </div>
       </DialogContent>

@@ -8,7 +8,7 @@ import { formatTime } from "@/lib/utils"
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [mode, setMode] = useState<"chat" | "queue">("chat")
-  const { connected, sendCommand, sendChat, onMessage, lastMessage } = useWebSocket()
+  const { connected, connecting, connectionError, sendCommand, sendChat, onMessage, lastMessage, reconnect } = useWebSocket()
 
   const addMessage = useCallback((role: "user" | "assistant" | "system", content: string) => {
     const message: ChatMessage = {
@@ -87,5 +87,8 @@ export function useChat() {
     mode,
     setMode,
     connected,
+    connecting,
+    connectionError,
+    reconnect,
   }
 }

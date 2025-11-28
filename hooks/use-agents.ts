@@ -6,6 +6,21 @@ import { useWebSocket } from "./use-websocket"
 import type { Agent } from "@/lib/types"
 import { formatDuration } from "@/lib/utils"
 
+const MISSION_CONFIG_KEY = "performa_mission_config"
+
+function getMissionConfig() {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = localStorage.getItem(MISSION_CONFIG_KEY)
+    if (stored) {
+      return JSON.parse(stored)
+    }
+  } catch (e) {
+    console.error("Failed to load mission config:", e)
+  }
+  return null
+}
+
 function transformAgent(agentRes: AgentResponse, index: number): Agent {
   return {
     id: agentRes.id,
@@ -19,6 +34,8 @@ function transformAgent(agentRes: AgentResponse, index: number): Agent {
     cpuUsage: agentRes.cpu_usage || 0,
     memoryUsage: agentRes.memory_usage || 0,
     progress: agentRes.progress || 0,
+    target: agentRes.target,
+    category: agentRes.category,
   }
 }
 
@@ -38,7 +55,7 @@ export function useAgents() {
     try {
       const response = await api.getAgents()
       if (response.data?.agents) {
-        const newAgents = response.data.agents.map((agent: any, index: number) => 
+        const newAgents = response.data.agents.map((agent: AgentResponse, index: number) => 
           transformAgent(agent, index)
         )
         setAgents(newAgents)
@@ -51,12 +68,11 @@ export function useAgents() {
   const removeAgent = useCallback(async (id: string) => {
     setLoading(true)
     try {
-      const response = await (api as any).deleteAgent(id)
+      const response = await api.deleteAgent(id)
       if (!response.error) {
         setAgents((prev) => prev.filter((a) => a.id !== id))
       }
     } catch {
-      // Optimistic update jika API gagal/tidak respon
       setAgents((prev) => prev.filter((a) => a.id !== id))
     } finally {
       setLoading(false)
@@ -65,7 +81,7 @@ export function useAgents() {
 
   const pauseAgent = useCallback(async (id: string) => {
     try {
-      const response = await (api as any).pauseAgent(id)
+      const response = await api.pauseAgent(id)
       if (!response.error) {
         setAgents((prev) => prev.map((a) => (a.id === id ? { ...a, status: "paused" as const } : a)))
       }
@@ -76,7 +92,7 @@ export function useAgents() {
 
   const resumeAgent = useCallback(async (id: string) => {
     try {
-      const response = await (api as any).resumeAgent(id)
+      const response = await api.resumeAgent(id)
       if (!response.error) {
         setAgents((prev) => prev.map((a) => (a.id === id ? { ...a, status: "running" as const } : a)))
       }
@@ -85,7 +101,6 @@ export function useAgents() {
     }
   }, [])
 
-  // Handle WebSocket updates
   useEffect(() => {
     if (isCreatingRef.current) {
       return
@@ -93,7 +108,7 @@ export function useAgents() {
     
     if (lastMessage?.type === "agent_update" && lastMessage.agents) {
       setAgents(
-        lastMessage.agents.map((a: any, index: number) => ({
+        lastMessage.agents.map((a: AgentUpdate, index: number) => ({
           id: a.id,
           displayId: `${index + 1}`,
           status: (a.status || "idle") as "idle" | "running" | "paused" | "error",
@@ -108,7 +123,6 @@ export function useAgents() {
     }
   }, [lastMessage])
 
-  // Polling fallback - use longer interval to prevent race conditions
   useEffect(() => {
     const initialFetch = setTimeout(() => {
       if (!isCreatingRef.current) {
@@ -172,9 +186,21 @@ export function useAgents() {
     setLoading(true)
     
     try {
-      const response = await api.createAgent(config)
+      const missionConfig = getMissionConfig()
+      
+      const agentConfig = {
+        target: config?.target || missionConfig?.target || "",
+        category: config?.category || missionConfig?.category || "domain",
+        custom_instruction: config?.custom_instruction || missionConfig?.customInstruction || "",
+        stealth_mode: config?.stealth_mode ?? missionConfig?.stealthMode ?? false,
+        aggressive_mode: config?.aggressive_mode ?? (missionConfig?.aggressiveLevel > 2) ?? false,
+        model_name: config?.model_name || missionConfig?.modelName || "openai/gpt-4-turbo",
+      }
+      
+      const response = await api.createAgent(agentConfig)
       if (response.data?.agent) {
         const newAgent = transformAgent(response.data.agent, agents.length)
+        newAgent.status = agentConfig.target ? "running" : "idle"
         setAgents(prev => [...prev, newAgent])
         
         setTimeout(() => {
@@ -185,6 +211,8 @@ export function useAgents() {
       }
       if (response.error) {
         console.error("Failed to create agent:", response.error)
+        isCreatingRef.current = false
+        return null
       }
       isCreatingRef.current = false
       return null
@@ -207,4 +235,14 @@ export function useAgents() {
     syncAgents,
     fetchAgents,
   }
+}
+
+interface AgentUpdate {
+  id: string
+  status: string
+  last_command: string
+  execution_time: number
+  cpu_usage: number
+  memory_usage: number
+  progress: number
 }
