@@ -5,12 +5,12 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { AlertTriangle, Shield, Download, ChevronRight, FileJson, FileText, RefreshCw } from "lucide-react"
+import { AlertTriangle, Shield, Download, ChevronRight, FileJson, FileText, RefreshCw, FileSpreadsheet, FileDown } from "lucide-react"
 import { useFindings } from "@/hooks/use-findings"
 import type { Finding } from "@/lib/types"
 
 export function FindingsPanel() {
-  const { findings, severitySummary, loading, exportFindings, exportHtmlReport, refetch } = useFindings()
+  const { findings, severitySummary, loading, exportFindings, exportCsv, exportPdf, refetch } = useFindings()
 
   return (
     <Card className="border-border">
@@ -36,9 +36,13 @@ export function FindingsPanel() {
                 <FileJson className="w-4 h-4 mr-2" />
                 Export JSON
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportHtmlReport}>
-                <FileText className="w-4 h-4 mr-2" />
-                Export HTML Report
+              <DropdownMenuItem onClick={exportCsv}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Export CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportPdf}>
+                <FileDown className="w-4 h-4 mr-2" />
+                Export PDF
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

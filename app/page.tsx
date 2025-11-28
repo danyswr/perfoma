@@ -19,8 +19,10 @@ import {
   Globe, FolderOpen, MessageSquare, X, Download, FileJson, FileText, FileSpreadsheet,
   ChevronRight, AlertTriangle, Settings, Terminal, Clock,
   MoreVertical, Pause, Trash2, ExternalLink, Check, Network, Eye, EyeOff,
-  RefreshCw, Send, User, ListOrdered, PanelLeft, Monitor, Brain, Timer
+  RefreshCw, Send, User, ListOrdered, PanelLeft, Monitor, Brain, Timer,
+  Cpu, MemoryStick, Activity, FileDown
 } from "lucide-react"
+import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
 import { ResourceMonitor } from "@/components/dashboard/resource-monitor"
 import { MissionTimer } from "@/components/dashboard/mission-timer"
 import { ModelInstructions } from "@/components/dashboard/model-instructions"
@@ -43,7 +45,7 @@ export default function Dashboard() {
   const { mission, startMission, stopMission } = useMission()
   const { agents, syncAgents, pauseAgent, resumeAgent, removeAgent, addAgent } = useAgents()
   const { resources } = useResources()
-  const { findings, severitySummary, exportFindings, exportHtmlReport } = useFindings()
+  const { findings, severitySummary, exportFindings, exportCsv, exportPdf } = useFindings()
   
   const [config, setConfig] = useState<MissionConfig>({
     target: "",
@@ -329,11 +331,11 @@ export default function Dashboard() {
                       <DropdownMenuItem onClick={exportFindings}>
                         <FileJson className="w-4 h-4 mr-2" />JSON
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={exportHtmlReport}>
-                        <FileText className="w-4 h-4 mr-2" />HTML Report
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
+                      <DropdownMenuItem onClick={exportCsv}>
                         <FileSpreadsheet className="w-4 h-4 mr-2" />CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={exportPdf}>
+                        <FileDown className="w-4 h-4 mr-2" />PDF Report
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -644,53 +646,233 @@ export default function Dashboard() {
       </div>
 
 
-      <Dialog open={!!selectedAgent} onOpenChange={() => setSelectedAgent(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bot className="w-5 h-5" />
-              Agent-{selectedAgent?.displayId || selectedAgent?.id}
-            </DialogTitle>
-          </DialogHeader>
-          {selectedAgent && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 rounded-lg bg-muted/30">
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge variant={selectedAgent.status === "running" ? "default" : selectedAgent.status === "paused" ? "secondary" : "outline"} className="mt-1 capitalize">
-                    {selectedAgent.status}
-                  </Badge>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/30">
-                  <p className="text-xs text-muted-foreground">Execution Time</p>
-                  <div className="flex items-center gap-1.5 mt-1 font-mono text-chart-3">
-                    <Timer className="w-4 h-4" />
-                    <span className="font-medium">{selectedAgent.executionTime || "00:00"}</span>
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/30">
-                  <p className="text-xs text-muted-foreground">CPU Usage</p>
-                  <p className="font-medium">{selectedAgent.cpuUsage}%</p>
-                </div>
-                <div className="p-3 rounded-lg bg-muted/30">
-                  <p className="text-xs text-muted-foreground">Memory</p>
-                  <p className="font-medium">{selectedAgent.memoryUsage}MB</p>
-                </div>
-              </div>
-              <div className="p-3 rounded-lg bg-black/80 font-mono text-sm text-green-400">
-                <p className="text-xs text-muted-foreground mb-1">Last Command</p>
-                {selectedAgent.lastCommand}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <AgentDetailModal agent={selectedAgent} onClose={() => setSelectedAgent(null)} />
     </div>
   )
 }
 
 
+function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: () => void }) {
+  const [cpuHistory, setCpuHistory] = useState<{value: number, time: string}[]>([])
+  const [memHistory, setMemHistory] = useState<{value: number, time: string}[]>([])
+  const [displayTime, setDisplayTime] = useState(agent?.executionTime || "00:00")
+
+  useEffect(() => {
+    if (!agent) return
+    
+    const generateData = () => {
+      const now = new Date()
+      const time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      
+      setCpuHistory(prev => {
+        const newData = [...prev, { value: Math.max(0, Math.min(100, agent.cpuUsage + Math.random() * 10 - 5)), time }]
+        return newData.slice(-20)
+      })
+      
+      setMemHistory(prev => {
+        const newData = [...prev, { value: Math.max(0, agent.memoryUsage + Math.random() * 20 - 10), time }]
+        return newData.slice(-20)
+      })
+    }
+
+    generateData()
+    const interval = setInterval(generateData, 2000)
+    return () => clearInterval(interval)
+  }, [agent])
+
+  useEffect(() => {
+    if (agent) setDisplayTime(agent.executionTime || "00:00")
+  }, [agent?.executionTime])
+
+  useEffect(() => {
+    if (!agent || agent.status !== "running") return
+    
+    const parseTime = (timeStr: string): number => {
+      const parts = timeStr.split(':').map(Number)
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+      if (parts.length === 2) return parts[0] * 60 + parts[1]
+      return 0
+    }
+    
+    const formatSeconds = (totalSeconds: number): string => {
+      const hrs = Math.floor(totalSeconds / 3600)
+      const mins = Math.floor((totalSeconds % 3600) / 60)
+      const secs = totalSeconds % 60
+      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
+    
+    let baseSeconds = parseTime(agent.executionTime || "00:00")
+    const interval = setInterval(() => {
+      baseSeconds += 1
+      setDisplayTime(formatSeconds(baseSeconds))
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [agent?.status, agent?.executionTime])
+
+  const getCpuColor = (value: number) => {
+    if (value >= 80) return "text-red-500"
+    if (value >= 60) return "text-yellow-500"
+    return "text-emerald-500"
+  }
+
+  if (!agent) return null
+
+  return (
+    <Dialog open={!!agent} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bot className="w-5 h-5 text-primary" />
+            Agent-{agent.displayId || agent.id} Details
+            <Badge variant={agent.status === "running" ? "default" : agent.status === "paused" ? "secondary" : "outline"} className="ml-2 capitalize">
+              {agent.status}
+            </Badge>
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
+              <div className="flex items-center gap-2 mb-1">
+                <Timer className="w-4 h-4 text-primary" />
+                <span className="text-xs text-muted-foreground">Execution Time</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl font-mono font-bold text-primary">{displayTime}</span>
+                {agent.status === "running" && <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
+              </div>
+            </div>
+            
+            <div className="p-3 rounded-lg bg-muted/30 border">
+              <div className="flex items-center gap-2 mb-1">
+                <Cpu className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">CPU Usage</span>
+              </div>
+              <span className={`text-lg font-mono font-semibold ${getCpuColor(agent.cpuUsage)}`}>{agent.cpuUsage}%</span>
+              <Progress value={agent.cpuUsage} className="h-1.5 mt-1" />
+            </div>
+            
+            <div className="p-3 rounded-lg bg-muted/30 border">
+              <div className="flex items-center gap-2 mb-1">
+                <MemoryStick className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Memory</span>
+              </div>
+              <span className="text-lg font-mono font-semibold text-blue-500">{agent.memoryUsage}MB</span>
+              <Progress value={Math.min(agent.memoryUsage / 5, 100)} className="h-1.5 mt-1" />
+            </div>
+            
+            <div className="p-3 rounded-lg bg-muted/30 border">
+              <div className="flex items-center gap-2 mb-1">
+                <Activity className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">Progress</span>
+              </div>
+              <span className="text-lg font-mono font-semibold text-emerald-500">{agent.progress}%</span>
+              <Progress value={agent.progress} className="h-1.5 mt-1" />
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg bg-black/80 font-mono text-sm text-green-400 border border-green-900/30">
+            <div className="flex items-center gap-2 mb-2">
+              <Terminal className="w-4 h-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Last Command</span>
+            </div>
+            <p className="text-sm">{agent.lastCommand || "Waiting for command..."}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 rounded-lg border bg-card">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-blue-500" />
+                CPU Usage History
+              </h4>
+              <div className="h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={cpuHistory}>
+                    <defs>
+                      <linearGradient id="modalCpuGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" hide />
+                    <YAxis domain={[0, 100]} hide />
+                    <Tooltip 
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                      formatter={(value: number) => [`${value.toFixed(1)}%`, 'CPU']}
+                    />
+                    <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#modalCpuGradient)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border bg-card">
+              <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <MemoryStick className="w-4 h-4 text-emerald-500" />
+                Memory Usage History
+              </h4>
+              <div className="h-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={memHistory}>
+                    <defs>
+                      <linearGradient id="modalMemGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="time" hide />
+                    <YAxis domain={[0, 'auto']} hide />
+                    <Tooltip 
+                      contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                      formatter={(value: number) => [`${value.toFixed(1)}MB`, 'Memory']}
+                    />
+                    <Area type="monotone" dataKey="value" stroke="#10b981" fill="url(#modalMemGradient)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Agent; onDetail: () => void; onPause: () => void; onResume: () => void; onRemove: () => void }) {
+  const [displayTime, setDisplayTime] = useState(agent.executionTime || "00:00")
+  
+  useEffect(() => {
+    setDisplayTime(agent.executionTime || "00:00")
+  }, [agent.executionTime])
+
+  useEffect(() => {
+    if (agent.status !== "running") return
+    
+    const parseTime = (timeStr: string): number => {
+      const parts = timeStr.split(':').map(Number)
+      if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+      if (parts.length === 2) return parts[0] * 60 + parts[1]
+      return 0
+    }
+    
+    const formatSeconds = (totalSeconds: number): string => {
+      const hrs = Math.floor(totalSeconds / 3600)
+      const mins = Math.floor((totalSeconds % 3600) / 60)
+      const secs = totalSeconds % 60
+      if (hrs > 0) return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+    }
+    
+    let baseSeconds = parseTime(agent.executionTime || "00:00")
+    const interval = setInterval(() => {
+      baseSeconds += 1
+      setDisplayTime(formatSeconds(baseSeconds))
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [agent.status, agent.executionTime])
+
   const statusColors = {
     idle: "border-muted-foreground/20",
     running: "border-emerald-500/50 bg-emerald-500/5",
@@ -698,35 +880,37 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
     error: "border-red-500/50 bg-red-500/5",
   }
 
-  const getCpuColor = (value: number) => {
-    if (value >= 80) return "bg-destructive"
-    if (value >= 60) return "bg-chart-3"
-    return "bg-primary"
+  const statusDot = {
+    idle: "bg-muted-foreground",
+    running: "bg-emerald-500",
+    paused: "bg-yellow-500",
+    error: "bg-red-500",
   }
 
   return (
-    <div className={`p-2.5 rounded-lg border ${statusColors[agent.status]} transition-all hover:shadow-md cursor-pointer`} onClick={onDetail}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <div className={`w-6 h-6 rounded-md flex items-center justify-center ${agent.status === "running" ? "bg-primary/10" : "bg-muted"}`}>
-            <Bot className={`w-3.5 h-3.5 ${agent.status === "running" ? "text-primary" : "text-muted-foreground"}`} />
+    <div className={`p-3 rounded-lg border ${statusColors[agent.status]} transition-all hover:shadow-md cursor-pointer group`} onClick={onDetail}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${agent.status === "running" ? "bg-primary/10" : "bg-muted"}`}>
+              <Bot className={`w-4 h-4 ${agent.status === "running" ? "text-primary" : "text-muted-foreground"}`} />
+            </div>
+            <div className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-background ${statusDot[agent.status]}`} />
           </div>
           <div>
-            <span className="font-semibold text-xs">Agent-{agent.displayId || agent.id.slice(0,4)}</span>
-            <Badge variant={agent.status === "running" ? "default" : agent.status === "paused" ? "secondary" : "outline"} className="text-[8px] h-3.5 ml-1.5 capitalize">
-              {agent.status}
-            </Badge>
+            <span className="font-semibold text-sm">Agent-{agent.displayId || agent.id.slice(0,4)}</span>
+            <p className="text-[10px] text-muted-foreground capitalize">{agent.status}</p>
           </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-            <Button variant="ghost" size="icon" className="h-5 w-5">
-              <MoreVertical className="w-3 h-3" />
+            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity">
+              <MoreVertical className="w-3.5 h-3.5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDetail(); }}>
-              <Eye className="w-3 h-3 mr-2" />Detail
+              <Eye className="w-3 h-3 mr-2" />View Details
             </DropdownMenuItem>
             {agent.status === "running" ? (
               <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onPause(); }}><Pause className="w-3 h-3 mr-2" />Pause</DropdownMenuItem>
@@ -740,31 +924,26 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
         </DropdownMenu>
       </div>
       
-      <div className="p-1.5 rounded bg-black/70 font-mono text-[9px] text-green-400 truncate mb-2 border border-green-900/30">
-        <Terminal className="w-2.5 h-2.5 inline mr-1 opacity-60" />
-        {agent.lastCommand || "Waiting..."}
+      <div className="p-2 rounded-md bg-black/80 font-mono text-[10px] text-green-400 truncate mb-3 border border-green-900/30">
+        <Terminal className="w-3 h-3 inline mr-1.5 opacity-60" />
+        {agent.lastCommand || "Waiting for command..."}
       </div>
       
-      <div className="grid grid-cols-2 gap-1.5 mb-2">
-        <div className="p-1.5 rounded bg-muted/30">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[9px] text-muted-foreground">CPU</span>
-            <span className="text-[9px] font-mono">{agent.cpuUsage}%</span>
-          </div>
-          <Progress value={agent.cpuUsage} className={`h-1 ${getCpuColor(agent.cpuUsage)}`} />
+      <div className="flex items-center justify-between p-2.5 rounded-lg bg-primary/5 border border-primary/20">
+        <div className="flex items-center gap-2">
+          <Timer className="w-4 h-4 text-primary" />
+          <span className="text-xs text-muted-foreground">Execution Time</span>
         </div>
-        <div className="p-1.5 rounded bg-muted/30">
-          <div className="flex items-center justify-between mb-0.5">
-            <span className="text-[9px] text-muted-foreground">MEM</span>
-            <span className="text-[9px] font-mono">{agent.memoryUsage}MB</span>
-          </div>
-          <Progress value={Math.min(agent.memoryUsage / 2, 100)} className="h-1 bg-chart-2" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-lg font-mono font-bold text-primary">{displayTime}</span>
+          {agent.status === "running" && (
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          )}
         </div>
       </div>
-      
-      <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono text-chart-3 bg-chart-3/5 rounded py-1 border border-chart-3/20">
-        <Timer className="w-3 h-3" />
-        <span>{agent.executionTime || "00:00"}</span>
+
+      <div className="mt-2 text-center">
+        <span className="text-[10px] text-muted-foreground">Click for CPU/Memory details</span>
       </div>
     </div>
   )
@@ -772,21 +951,44 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
 
 function FindingCard({ finding }: { finding: Finding }) {
   const colors = {
-    critical: "border-l-red-500",
-    high: "border-l-orange-500",
-    medium: "border-l-yellow-500",
-    low: "border-l-blue-500",
-    info: "border-l-gray-500",
+    critical: "border-l-red-500 bg-red-500/5",
+    high: "border-l-orange-500 bg-orange-500/5",
+    medium: "border-l-yellow-500 bg-yellow-500/5",
+    low: "border-l-blue-500 bg-blue-500/5",
+    info: "border-l-gray-500 bg-gray-500/5",
+  }
+
+  const badgeColors = {
+    critical: "bg-red-500/20 text-red-400 border-red-500/30",
+    high: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+    medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+    low: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+    info: "bg-gray-500/20 text-gray-400 border-gray-500/30",
   }
 
   return (
-    <div className={`p-2 rounded-lg bg-muted/30 border-l-2 ${colors[finding.severity]} hover:bg-muted/50 transition-colors cursor-pointer`}>
-      <div className="flex items-center gap-2 mb-1">
-        <Badge variant="outline" className="text-xs capitalize">{finding.severity}</Badge>
-        {finding.cve && <Badge variant="secondary" className="text-xs font-mono">{finding.cve}</Badge>}
+    <div className={`p-3 rounded-lg border-l-2 ${colors[finding.severity]} hover:bg-muted/50 transition-colors cursor-pointer border border-transparent hover:border-border/50`}>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5">
+          <Badge variant="outline" className={`text-[10px] capitalize ${badgeColors[finding.severity]}`}>
+            {finding.severity}
+          </Badge>
+          {finding.cvss && (
+            <span className="text-[10px] font-mono text-muted-foreground">
+              CVSS: {finding.cvss.toFixed(1)}
+            </span>
+          )}
+        </div>
+        {finding.cve && (
+          <Badge variant="secondary" className="text-[9px] font-mono h-4 px-1.5">{finding.cve}</Badge>
+        )}
       </div>
-      <p className="text-xs font-medium truncate">{finding.title}</p>
-      <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{finding.description}</p>
+      <p className="text-xs font-medium leading-tight mb-1">{finding.title}</p>
+      <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">{finding.description}</p>
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
+        <span className="text-[9px] text-muted-foreground">Agent {finding.agentId}</span>
+        <span className="text-[9px] text-muted-foreground">{finding.timestamp}</span>
+      </div>
     </div>
   )
 }
