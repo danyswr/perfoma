@@ -74,8 +74,8 @@ export function ResourceMonitor() {
         </div>
 
         {/* Usage Chart */}
-        <div className="h-[150px] mt-4">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-[150px] mt-4" style={{ minWidth: 200, minHeight: 100 }}>
+          <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={100}>
             <AreaChart data={history}>
               <defs>
                 <linearGradient id="cpuGradient" x1="0" y1="0" x2="0" y2="1">

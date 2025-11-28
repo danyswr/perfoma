@@ -46,11 +46,11 @@ export function useMission() {
           custom_instruction: config.customInstruction,
           stealth_mode: config.stealthMode,
           aggressive_mode: config.aggressiveLevel > 2,
-          aggressive_level: config.aggressiveLevel,
           model_name: config.modelName,
           num_agents: config.numAgents,
-          stealth_options: config.stealthOptions,
-          capabilities: config.capabilities,
+          os_type: config.osType,
+          stealth_options: config.stealthOptions as unknown as Record<string, boolean>,
+          capabilities: config.capabilities as unknown as Record<string, boolean>,
         })
 
         if (response.error) {
@@ -60,6 +60,7 @@ export function useMission() {
 
         const agentIds = response.data?.agent_ids || []
 
+        const missionStartTime = Date.now()
         setMission({
           active: true,
           target: config.target,
@@ -71,6 +72,7 @@ export function useMission() {
           totalAgents: config.numAgents,
           completedTasks: 0,
           findings: 0,
+          startTime: missionStartTime,
         })
 
         timerRef.current = setInterval(() => {
@@ -104,12 +106,18 @@ export function useMission() {
   }, [])
 
   const updateProgress = useCallback((progress: number, activeAgents: number, completedTasks: number) => {
-    setMission((prev) => ({
-      ...prev,
-      progress,
-      activeAgents,
-      completedTasks,
-    }))
+    setMission((prev) => {
+      const newState = {
+        ...prev,
+        progress,
+        activeAgents,
+        completedTasks,
+      }
+      if (prev.active && !prev.startTime) {
+        newState.startTime = Date.now() - (prev.duration * 1000)
+      }
+      return newState
+    })
   }, [])
 
   useEffect(() => {

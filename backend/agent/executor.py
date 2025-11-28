@@ -17,11 +17,12 @@ from stealth.fingerprint import FingerprintRandomizer
 class CommandExecutor:
     """Executes security tool commands with advanced stealth capabilities and cross-platform support"""
     
-    def __init__(self, agent_id: str, stealth_mode: bool = False, stealth_config: dict = None, target: str = ""):
+    def __init__(self, agent_id: str, stealth_mode: bool = False, stealth_config: Optional[Dict] = None, target: str = "", os_type: str = "linux"):
         self.agent_id = agent_id
         self.target = target
         self.stealth_mode = stealth_mode
         self.stealth_config = stealth_config or {}
+        self.os_type = os_type
         
         self.user_agent_rotator = UserAgentRotator(
             strategy=self.stealth_config.get("ua_strategy", "random")
@@ -41,7 +42,7 @@ class CommandExecutor:
         self.error_count = 0
         self.execution_count = 0
         
-        self.is_windows = platform.system().lower() == "windows"
+        self.is_windows = os_type == "windows"
         self.log_dir = self._create_log_directory()
         
     def _create_log_directory(self) -> str:

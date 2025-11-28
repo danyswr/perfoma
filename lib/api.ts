@@ -53,6 +53,9 @@ export const api = {
     aggressive_mode: boolean
     model_name: string
     num_agents: number
+    os_type?: string
+    stealth_options?: Record<string, boolean>
+    capabilities?: Record<string, boolean>
   }) {
     try {
       const res = await fetch(`${API_BASE}/api/start`, {

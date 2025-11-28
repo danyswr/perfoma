@@ -8,6 +8,7 @@ export interface MissionConfig {
   numAgents: number
   stealthOptions: StealthOptions
   capabilities: CapabilityOptions
+  osType: "windows" | "linux"
 }
 
 export interface StealthOptions {
@@ -46,6 +47,7 @@ export interface Mission {
   totalAgents: number
   completedTasks: number
   findings: number
+  startTime?: number
 }
 
 export interface Agent {
@@ -63,6 +65,13 @@ export interface Agent {
   currentTask?: string
   tasksCompleted?: number
   findingsCount?: number
+  cpuHistory?: ResourceDataPoint[]
+  memoryHistory?: ResourceDataPoint[]
+}
+
+export interface ResourceDataPoint {
+  time: string
+  value: number
 }
 
 export interface ChatMessage {
@@ -70,6 +79,15 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system"
   content: string
   timestamp: string
+}
+
+export interface ModelInstruction {
+  id: string
+  agentId: string
+  modelName: string
+  instruction: string
+  timestamp: string
+  type: "command" | "analysis" | "decision"
 }
 
 export interface Finding {

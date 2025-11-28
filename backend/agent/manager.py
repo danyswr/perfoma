@@ -32,7 +32,10 @@ class AgentManager:
         stealth_mode: bool,
         aggressive_mode: bool,
         model_name: str,
-        stealth_config: Optional[Dict] = None
+        stealth_config: Optional[Dict] = None,
+        os_type: str = "linux",
+        stealth_options: Optional[Dict] = None,
+        capabilities: Optional[Dict] = None
     ) -> List[str]:
         """Create multiple agents for operation"""
         agent_ids = []
@@ -63,7 +66,10 @@ class AgentManager:
                 model_name=model_name,
                 shared_knowledge=self.shared_knowledge,
                 logger=self.logger,
-                stealth_config=stealth_config
+                stealth_config=stealth_config,
+                os_type=os_type,
+                stealth_options=stealth_options,
+                capabilities=capabilities
             )
             
             self.agents[agent_id] = agent

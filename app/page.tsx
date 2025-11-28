@@ -19,9 +19,12 @@ import {
   Globe, FolderOpen, MessageSquare, X, Download, FileJson, FileText, FileSpreadsheet,
   ChevronRight, AlertTriangle, Settings, Terminal, Clock,
   MoreVertical, Pause, Trash2, ExternalLink, Check, Network, Eye, EyeOff,
-  RefreshCw, Send, User, ListOrdered, PanelLeft
+  RefreshCw, Send, User, ListOrdered, PanelLeft, Monitor, Brain, Timer
 } from "lucide-react"
 import { ResourceMonitor } from "@/components/dashboard/resource-monitor"
+import { MissionTimer } from "@/components/dashboard/mission-timer"
+import { ModelInstructions } from "@/components/dashboard/model-instructions"
+import { AgentResourceGraph } from "@/components/dashboard/agent-resource-graph"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useMission } from "@/hooks/use-mission"
 import { useAgents } from "@/hooks/use-agents"
@@ -53,6 +56,7 @@ export default function Dashboard() {
     numAgents: 3,
     stealthOptions: DEFAULT_STEALTH_OPTIONS,
     capabilities: DEFAULT_CAPABILITY_OPTIONS,
+    osType: "linux",
   })
   const [customModelId, setCustomModelId] = useState("")
   const [testingApi, setTestingApi] = useState(false)
@@ -207,9 +211,16 @@ export default function Dashboard() {
             {backendStatus === "online" ? "Online" : backendStatus === "offline" ? "Offline" : "Connecting..."}
           </Badge>
           {mission.active && (
-            <Button variant="destructive" size="sm" onClick={stopMission}>
-              Stop Mission
-            </Button>
+            <>
+              <MissionTimer 
+                active={mission.active} 
+                startTime={mission.startTime} 
+                duration={mission.duration} 
+              />
+              <Button variant="destructive" size="sm" onClick={stopMission}>
+                Stop Mission
+              </Button>
+            </>
           )}
         </div>
       </header>
@@ -518,6 +529,41 @@ export default function Dashboard() {
                       <span>5 - Maximum</span>
                     </div>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium flex items-center gap-2">
+                      <Monitor className="w-4 h-4 text-blue-500" />
+                      Operating System
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Select the target OS for command execution
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant={config.osType === "linux" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setConfig({ ...config, osType: "linux" })}
+                        className="h-10 gap-2"
+                      >
+                        <Terminal className="w-4 h-4" />
+                        Linux
+                      </Button>
+                      <Button
+                        variant={config.osType === "windows" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setConfig({ ...config, osType: "windows" })}
+                        className="h-10 gap-2"
+                      >
+                        <Monitor className="w-4 h-4" />
+                        Windows
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {config.osType === "linux" 
+                        ? "Commands will execute via Bash shell" 
+                        : "Commands will execute via PowerShell"}
+                    </p>
+                  </div>
                 </>
               )}
 
@@ -677,11 +723,17 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="p-1 rounded bg-black/60 font-mono text-[9px] text-green-400 truncate mb-1">
+      <div className="p-1 rounded bg-black/60 font-mono text-[9px] text-green-400 truncate mb-1.5">
         {agent.lastCommand || "Waiting..."}
       </div>
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-        <span>{agent.status}</span>
+      <AgentResourceGraph 
+        agentId={agent.id}
+        cpuUsage={agent.cpuUsage}
+        memoryUsage={agent.memoryUsage}
+        compact={true}
+      />
+      <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1.5">
+        <span className="capitalize">{agent.status}</span>
         <span>{agent.progress}%</span>
       </div>
       <Progress value={agent.progress} className="h-1 mt-1" />
@@ -733,6 +785,7 @@ function CapToggle({ label, checked, onChange }: { label: string; checked: boole
 
 function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const [input, setInput] = useState("")
+  const [sidebarTab, setSidebarTab] = useState<"chat" | "queue" | "history">("chat")
   const { messages, sendMessage, sendQueueCommand, mode, setMode, connected } = useChat()
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -748,6 +801,12 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
     setInput("")
   }
 
+  const handleTabChange = (tab: "chat" | "queue" | "history") => {
+    setSidebarTab(tab)
+    if (tab === "chat") setMode("chat")
+    if (tab === "queue") setMode("queue")
+  }
+
   return (
     <div className={`h-full border-r border-border flex flex-col transition-all duration-300 ${open ? "w-80" : "w-12"}`}>
       <div className="p-2 border-b border-border flex items-center justify-between shrink-0">
@@ -761,7 +820,9 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
         </Button>
         {open && (
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm">Live Chat</span>
+            <span className="font-semibold text-sm">
+              {sidebarTab === "history" ? "Model History" : "Live Chat"}
+            </span>
             {connected ? (
               <Badge variant="default" className="text-xs">Online</Badge>
             ) : (
@@ -775,23 +836,39 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
         <>
           <div className="px-2 py-1 border-b border-border flex gap-1 shrink-0">
             <Button
-              variant={mode === "chat" ? "default" : "ghost"}
+              variant={sidebarTab === "chat" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setMode("chat")}
-              className="h-7 text-xs flex-1"
+              onClick={() => handleTabChange("chat")}
+              className="h-7 text-xs flex-1 gap-1"
             >
+              <MessageSquare className="w-3 h-3" />
               Chat
             </Button>
             <Button
-              variant={mode === "queue" ? "default" : "ghost"}
+              variant={sidebarTab === "queue" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setMode("queue")}
-              className="h-7 text-xs flex-1"
+              onClick={() => handleTabChange("queue")}
+              className="h-7 text-xs flex-1 gap-1"
             >
+              <ListOrdered className="w-3 h-3" />
               Queue
+            </Button>
+            <Button
+              variant={sidebarTab === "history" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handleTabChange("history")}
+              className="h-7 text-xs flex-1 gap-1"
+            >
+              <Brain className="w-3 h-3" />
+              History
             </Button>
           </div>
 
+          {sidebarTab === "history" ? (
+            <div className="flex-1 min-h-0">
+              <ModelInstructions />
+            </div>
+          ) : (
           <ScrollArea className="flex-1 p-3">
             {messages.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
@@ -819,7 +896,9 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
               </div>
             )}
           </ScrollArea>
+          )}
 
+          {sidebarTab !== "history" && (
           <form onSubmit={handleSubmit} className="p-3 border-t border-border shrink-0">
             <div className="flex gap-2">
               <Input
@@ -833,6 +912,7 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
               </Button>
             </div>
           </form>
+          )}
         </>
       ) : (
         <div className="flex-1 flex flex-col items-center py-4 gap-3">

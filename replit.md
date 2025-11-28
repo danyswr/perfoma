@@ -4,6 +4,15 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-28**: Added advanced monitoring features
+  - Model Instructions History: New "History" tab in chat sidebar to track AI model commands sent to agents
+  - OS Type Configuration: Added Linux/Windows selection in Mode tab for proper command execution
+  - Mission Timer: Added timer component in navbar showing elapsed time during active missions with fallback for page reloads
+  - Agent Resource Graphs: Real-time CPU and Memory monitoring graphs for each agent card
+  - Fixed chart dimension warnings by adding minWidth/minHeight constraints
+  - Mission startTime now properly persists across state updates
+  - Model instructions hook captures agent_update/agent_status WebSocket events for command history
+
 - **2024-11-28**: Fixed agent state management issues
   - Fixed race condition where polling could overwrite newly created agents
   - Added isCreatingRef flag to prevent state overwrites during agent creation
@@ -28,6 +37,10 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
 - **Key Features**:
   - Real-time agent monitoring dashboard
   - Live chat interface for AI agents
+  - Model Instructions History (tracks AI commands to agents)
+  - Per-agent CPU and Memory resource graphs
+  - Mission Timer with elapsed time display
+  - OS Type configuration (Linux/Windows)
   - Resource monitoring and visualization
   - Security findings panel with severity tracking
   - Mission configuration and control
@@ -83,4 +96,6 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
 - The system requires an OpenRouter API key to function (agents use LLMs for operation)
 - Backend logs show successful API communication
 - Frontend health checks are working (backend receiving /api/agents requests)
-- WebSocket HMR warnings in development are cosmetic and don't affect functionality
+- WebSocket HMR warnings in development are cosmetic and don't affect functionality (this is Next.js dev server's hot reload, not the application's WebSocket)
+- Chart dimension warnings during initial render are cosmetic - charts function correctly after data loads
+- The application's actual WebSocket for real-time updates uses the `/ws/*` routes, which work properly

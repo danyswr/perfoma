@@ -24,7 +24,10 @@ class AgentWorker:
         model_name: str,
         shared_knowledge: Dict,
         logger: Logger,
-        stealth_config: Optional[Dict] = None
+        stealth_config: Optional[Dict] = None,
+        os_type: str = "linux",
+        stealth_options: Optional[Dict] = None,
+        capabilities: Optional[Dict] = None
     ):
         self.agent_id = agent_id
         self.agent_number = agent_number
@@ -36,8 +39,11 @@ class AgentWorker:
         self.model_name = model_name
         self.shared_knowledge = shared_knowledge
         self.logger = logger
+        self.os_type = os_type
+        self.stealth_options = stealth_options or {}
+        self.capabilities = capabilities or {}
         
-        self.executor = CommandExecutor(agent_id, stealth_mode, stealth_config, target)
+        self.executor = CommandExecutor(agent_id, stealth_mode, stealth_config, target, os_type)
         self.model_router = ModelRouter()
         
         self.status = "idle"  # idle, running, paused, completed, error

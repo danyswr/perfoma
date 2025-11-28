@@ -22,6 +22,9 @@ class TargetInput(BaseModel):
     aggressive_mode: bool = False
     model_name: str = "openai/gpt-4-turbo"
     num_agents: int = 1
+    os_type: str = "linux"  # linux or windows
+    stealth_options: Optional[Dict[str, bool]] = None
+    capabilities: Optional[Dict[str, bool]] = None
 
 class CommandBatch(BaseModel):
     commands: Dict[str, str]  # {"1": "RUN nmap ...", "2": "RUN nikto ..."}
@@ -41,7 +44,7 @@ class ModelTestInput(BaseModel):
 async def start_operation(target: TargetInput, background_tasks: BackgroundTasks):
     """Start autonomous cyber security operation"""
     try:
-        # Create agents
+        # Create agents with all configuration options
         agent_ids = await agent_manager.create_agents(
             num_agents=min(target.num_agents, 10),
             target=target.target,
@@ -49,10 +52,13 @@ async def start_operation(target: TargetInput, background_tasks: BackgroundTasks
             custom_instruction=target.custom_instruction,
             stealth_mode=target.stealth_mode,
             aggressive_mode=target.aggressive_mode,
-            model_name=target.model_name
+            model_name=target.model_name,
+            os_type=target.os_type,
+            stealth_options=target.stealth_options,
+            capabilities=target.capabilities
         )
         
-        # Start operation in background
+        # Start operation in background with full config
         background_tasks.add_task(
             agent_manager.start_operation,
             agent_ids,
@@ -74,6 +80,7 @@ class CreateAgentInput(BaseModel):
     stealth_mode: bool = False
     aggressive_mode: bool = False
     model_name: str = "openai/gpt-4-turbo"
+    os_type: str = "linux"  # linux or windows
 
 @router.get("/agents")
 async def get_agents():
