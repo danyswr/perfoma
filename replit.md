@@ -4,6 +4,15 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-28**: Model Routing & Real-time Updates Fixed ✅
+  - ✅ FIXED: ModelRouter now prioritizes direct API keys (Anthropic/OpenAI) over OpenRouter fallback
+  - ✅ FIXED: Claude models require ANTHROPIC_API_KEY directly - no more 402 OpenRouter errors
+  - ✅ FIXED: WebSocket broadcast tasks have proper lifecycle management (cancel when no clients)
+  - ✅ FIXED: History updates use content-based hash detection (not just length) for real-time updates
+  - ✅ IMPROVED: 500ms broadcast interval for smoother real-time agent status updates
+  - ✅ IMPROVED: Default model set to Claude 3.5 Sonnet with Anthropic provider
+  - STATUS: System is operational with proper Anthropic API integration
+
 - **2024-11-28**: Final Session - All Systems Fixed & Operational ✅
   - ✅ FIXED: Restored worker.py with complete AgentWorker class
   - ✅ FIXED: Reconstructed tools/allowed_tools.py with correct dict structure (17 categories)
