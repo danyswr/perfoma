@@ -4,6 +4,25 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-28**: Advanced Agent Intelligence Features ✅
+  - ✅ ADDED: SQLite-based persistent memory system (agent/memory.py)
+    - Conversation history, findings, knowledge base storage
+    - Async operations using aiosqlite for non-blocking database access
+  - ✅ ADDED: Intelligent throttling mechanism (agent/throttle.py)
+    - Resource monitoring with async thread pool execution (no event loop blocking)
+    - ThrottleLevel enum: NONE, LIGHT, MODERATE, HEAVY, PAUSE
+    - 2-second cache for resource metrics to reduce overhead
+  - ✅ ADDED: Inter-agent collaboration system (agent/collaboration.py)
+    - Message bus for agent-to-agent communication
+    - Shared knowledge base with multi-agent contributions
+    - Support for discovery sharing, task requests, and alerts
+  - ✅ ADDED: Rate limiting for AI model calls (token bucket algorithm)
+    - Prevents API rate limit errors with adaptive delays
+    - Exponential backoff strategy for failed calls
+  - ✅ FIXED: Thread-safe singleton initialization with double-checked locking
+  - ✅ FIXED: Removed SQLite UNIQUE constraints for multi-agent knowledge sharing
+  - STATUS: Agent system now supports persistent memory, collaboration, and intelligent resource management
+
 - **2024-11-28**: OpenRouter Full Integration - All Models Available ✅
   - ✅ CHANGED: ModelRouter now uses OpenRouter as primary provider for all models
   - ✅ CHANGED: All models available through OpenRouter (GPT-4, Claude, Gemini, Llama, etc.)
