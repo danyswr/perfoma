@@ -68,21 +68,45 @@ class AgentWorker:
         # If no target is set, agent will run in standby mode with basic instructions
         if not self.target:
             self.last_execute = "Agent ready, awaiting target assignment"
+            self.status = "idle"
             await self.logger.log_event(
                 f"Agent {self.agent_id} running in standby mode (no target)",
                 "agent",
                 {"agent_id": self.agent_id}
             )
+            await self._broadcast_status_update()
+            return
+        
+        self.last_execute = f"Initializing analysis of {self.target}..."
+        await self._broadcast_status_update()
         
         try:
             await self._run_autonomous_loop()
         except Exception as e:
             self.status = "error"
+            self.last_execute = f"Error: {str(e)[:100]}"
             await self.logger.log_event(
                 f"Agent {self.agent_id} error: {str(e)}",
                 "error",
                 {"agent_id": self.agent_id}
             )
+            await self._broadcast_status_update()
+    
+    async def _broadcast_status_update(self):
+        """Broadcast current status to WebSocket clients"""
+        try:
+            from server.ws import manager
+            status = await self.get_status()
+            await manager.broadcast({
+                "type": "agent_status",
+                "agent_id": self.agent_id,
+                "status": status["status"],
+                "last_command": status["last_command"],
+                "execution_time": status["execution_time"],
+                "progress": status["progress"]
+            })
+        except Exception:
+            pass
     
     async def _run_autonomous_loop(self):
         """Main autonomous execution loop"""
@@ -93,15 +117,21 @@ class AgentWorker:
         iteration = 0
         max_iterations = 50  # Prevent infinite loops
         
+        self.last_execute = f"Starting security analysis of {self.target}..."
+        await self._broadcast_status_update()
+        
         while not self.stopped and iteration < max_iterations:
             # Check if paused
             while self.paused and not self.stopped:
+                self.last_execute = "Agent paused"
                 await asyncio.sleep(1)
             
             if self.stopped:
                 break
             
             iteration += 1
+            self.last_execute = f"Iteration {iteration}: Analyzing target..."
+            await self._broadcast_status_update()
             
             # Get next action from AI model
             user_message = self._build_user_message(iteration)
@@ -114,8 +144,13 @@ class AgentWorker:
                     self.context_history[-10:]  # Last 10 messages
                 )
                 
+                # Update last_execute with a summary of the response
+                response_summary = response[:100].replace('\n', ' ')
+                self.last_execute = f"AI: {response_summary}..."
+                
                 # Broadcast model instruction via WebSocket
                 await self._broadcast_model_instruction(response)
+                await self._broadcast_status_update()
                 
                 # Add to context
                 self.context_history.append({
@@ -129,11 +164,13 @@ class AgentWorker:
                 
                 # Check for END signal
                 if "<END!>" in response:
+                    self.last_execute = "Mission completed successfully"
                     await self.logger.log_event(
                         f"Agent {self.agent_id} completed mission",
                         "agent"
                     )
                     self.status = "completed"
+                    await self._broadcast_status_update()
                     break
                 
                 # Extract and execute commands
@@ -141,6 +178,7 @@ class AgentWorker:
                 
                 if commands:
                     await self._execute_commands(commands)
+                    await self._broadcast_status_update()
                 
                 # Extract and save findings
                 findings = self._extract_findings(response)
@@ -156,31 +194,38 @@ class AgentWorker:
                 
             except Exception as e:
                 error_str = str(e)
+                self.last_execute = f"Error: {error_str[:80]}"
                 await self.logger.log_event(
                     f"Agent {self.agent_id} iteration error: {error_str}",
                     "error",
                     {"error_type": type(e).__name__, "model": self.model_name}
                 )
+                await self._broadcast_status_update()
                 
-                if "402 Payment Required" in error_str or "Unauthorized" in error_str:
+                if "402 Payment Required" in error_str or "Unauthorized" in error_str or "API Key" in error_str:
                     # Stop agent on auth/billing errors
                     self.status = "error"
+                    self.last_execute = f"API Error: {error_str[:60]}"
                     await self.logger.log_event(
                         f"Agent {self.agent_id} stopping due to critical error: {error_str}",
                         "error"
                     )
+                    await self._broadcast_status_update()
                     break
                 
-                # Continue to next iteration for temporary errors
+                # Wait before retrying on temporary errors
+                await asyncio.sleep(3)
         
         if iteration >= max_iterations:
             self.status = "completed"
+            self.last_execute = "Reached maximum iterations"
             await self.logger.log_event(
                 f"Agent {self.agent_id} reached max iterations",
                 "agent"
             )
         
         self.status = "completed"
+        await self._broadcast_status_update()
     
     def _build_system_prompt(self) -> str:
         """Build system prompt for AI model"""

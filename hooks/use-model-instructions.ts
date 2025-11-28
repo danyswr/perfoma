@@ -5,6 +5,7 @@ import type { ModelInstruction } from "@/lib/types"
 import { useWebSocket } from "@/hooks/use-websocket"
 
 const STORAGE_KEY = "performa_model_instructions"
+const PROCESSED_KEY = "performa_processed_commands"
 const MAX_INSTRUCTIONS = 100
 
 function generateUUID(): string {
@@ -31,12 +32,35 @@ function loadFromStorage(): ModelInstruction[] {
   return []
 }
 
+function loadProcessedCommands(): Set<string> {
+  if (typeof window === 'undefined') return new Set()
+  try {
+    const stored = localStorage.getItem(PROCESSED_KEY)
+    if (stored) {
+      return new Set(JSON.parse(stored))
+    }
+  } catch (e) {
+    console.error("Failed to load processed commands from storage:", e)
+  }
+  return new Set()
+}
+
 function saveToStorage(instructions: ModelInstruction[]) {
   if (typeof window === 'undefined') return
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(instructions.slice(0, MAX_INSTRUCTIONS)))
   } catch (e) {
     console.error("Failed to save model instructions to storage:", e)
+  }
+}
+
+function saveProcessedCommands(commands: Set<string>) {
+  if (typeof window === 'undefined') return
+  try {
+    const arr = Array.from(commands).slice(-500)
+    localStorage.setItem(PROCESSED_KEY, JSON.stringify(arr))
+  } catch (e) {
+    console.error("Failed to save processed commands to storage:", e)
   }
 }
 
@@ -47,15 +71,21 @@ export function useModelInstructions() {
   const isInitialized = useRef(false)
 
   useEffect(() => {
-    if (!isInitialized.current) {
+    if (!isInitialized.current && typeof window !== 'undefined') {
       const stored = loadFromStorage()
+      const processed = loadProcessedCommands()
+      
       if (stored.length > 0) {
         setInstructions(stored)
-        stored.forEach(inst => {
-          const key = `${inst.agentId}-${inst.instruction}`
-          processedCommands.current.add(key)
-        })
       }
+      
+      processedCommands.current = processed
+      
+      stored.forEach(inst => {
+        const key = `${inst.agentId}-${inst.instruction}`
+        processedCommands.current.add(key)
+      })
+      
       isInitialized.current = true
     }
   }, [])
@@ -63,6 +93,7 @@ export function useModelInstructions() {
   useEffect(() => {
     if (isInitialized.current && instructions.length > 0) {
       saveToStorage(instructions)
+      saveProcessedCommands(processedCommands.current)
     }
   }, [instructions])
 
@@ -171,6 +202,7 @@ export function useModelInstructions() {
     processedCommands.current.clear()
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(PROCESSED_KEY)
     }
   }, [])
 

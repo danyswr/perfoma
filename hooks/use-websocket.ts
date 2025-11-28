@@ -31,6 +31,8 @@ export interface WebSocketMessage {
     | "queue_edit"
     | "chat_response"
     | "agent_update"
+    | "agent_status"
+    | "model_instruction"
     | "error"
   message?: string
   mode?: string
@@ -40,6 +42,14 @@ export interface WebSocketMessage {
   agents?: AgentUpdate[]
   removed?: string
   index?: number
+  agent_id?: string
+  status?: string
+  last_command?: string
+  execution_time?: number
+  progress?: number
+  instruction?: string
+  model_name?: string
+  instruction_type?: string
 }
 
 export interface QueueItem {

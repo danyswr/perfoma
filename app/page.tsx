@@ -657,11 +657,16 @@ export default function Dashboard() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 rounded-lg bg-muted/30">
                   <p className="text-xs text-muted-foreground">Status</p>
-                  <p className="font-medium capitalize">{selectedAgent.status}</p>
+                  <Badge variant={selectedAgent.status === "running" ? "default" : selectedAgent.status === "paused" ? "secondary" : "outline"} className="mt-1 capitalize">
+                    {selectedAgent.status}
+                  </Badge>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/30">
-                  <p className="text-xs text-muted-foreground">Progress</p>
-                  <p className="font-medium">{selectedAgent.progress}%</p>
+                  <p className="text-xs text-muted-foreground">Execution Time</p>
+                  <div className="flex items-center gap-1.5 mt-1 font-mono text-chart-3">
+                    <Timer className="w-4 h-4" />
+                    <span className="font-medium">{selectedAgent.executionTime || "00:00"}</span>
+                  </div>
                 </div>
                 <div className="p-3 rounded-lg bg-muted/30">
                   <p className="text-xs text-muted-foreground">CPU Usage</p>
@@ -676,7 +681,6 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground mb-1">Last Command</p>
                 {selectedAgent.lastCommand}
               </div>
-              <Progress value={selectedAgent.progress} />
             </div>
           )}
         </DialogContent>
@@ -694,42 +698,74 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
     error: "border-red-500/50 bg-red-500/5",
   }
 
+  const getCpuColor = (value: number) => {
+    if (value >= 80) return "bg-destructive"
+    if (value >= 60) return "bg-chart-3"
+    return "bg-primary"
+  }
+
   return (
-    <div className={`p-2 rounded-lg border ${statusColors[agent.status]} transition-all hover:shadow-sm`}>
-      <div className="flex items-center justify-between mb-1">
+    <div className={`p-2.5 rounded-lg border ${statusColors[agent.status]} transition-all hover:shadow-md cursor-pointer`} onClick={onDetail}>
+      <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
-          <Bot className="w-4 h-4 text-primary" />
-          <span className="font-semibold text-xs">Agent-{agent.displayId || agent.id.slice(0,4)}</span>
+          <div className={`w-6 h-6 rounded-md flex items-center justify-center ${agent.status === "running" ? "bg-primary/10" : "bg-muted"}`}>
+            <Bot className={`w-3.5 h-3.5 ${agent.status === "running" ? "text-primary" : "text-muted-foreground"}`} />
+          </div>
+          <div>
+            <span className="font-semibold text-xs">Agent-{agent.displayId || agent.id.slice(0,4)}</span>
+            <Badge variant={agent.status === "running" ? "default" : agent.status === "paused" ? "secondary" : "outline"} className="text-[8px] h-3.5 ml-1.5 capitalize">
+              {agent.status}
+            </Badge>
+          </div>
         </div>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" size="icon" className="h-5 w-5">
               <MoreVertical className="w-3 h-3" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onDetail}>
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDetail(); }}>
               <Eye className="w-3 h-3 mr-2" />Detail
             </DropdownMenuItem>
             {agent.status === "running" ? (
-              <DropdownMenuItem onClick={onPause}><Pause className="w-3 h-3 mr-2" />Pause</DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onPause(); }}><Pause className="w-3 h-3 mr-2" />Pause</DropdownMenuItem>
             ) : agent.status === "paused" ? (
-              <DropdownMenuItem onClick={onResume}><Play className="w-3 h-3 mr-2" />Resume</DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onResume(); }}><Play className="w-3 h-3 mr-2" />Resume</DropdownMenuItem>
             ) : null}
-            <DropdownMenuItem onClick={onRemove} className="text-destructive">
+            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onRemove(); }} className="text-destructive">
               <Trash2 className="w-3 h-3 mr-2" />Terminate
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <div className="p-1 rounded bg-black/60 font-mono text-[9px] text-green-400 truncate mb-1.5">
+      
+      <div className="p-1.5 rounded bg-black/70 font-mono text-[9px] text-green-400 truncate mb-2 border border-green-900/30">
+        <Terminal className="w-2.5 h-2.5 inline mr-1 opacity-60" />
         {agent.lastCommand || "Waiting..."}
       </div>
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1.5">
-        <span className="capitalize">{agent.status}</span>
-        <span>{agent.progress}%</span>
+      
+      <div className="grid grid-cols-2 gap-1.5 mb-2">
+        <div className="p-1.5 rounded bg-muted/30">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[9px] text-muted-foreground">CPU</span>
+            <span className="text-[9px] font-mono">{agent.cpuUsage}%</span>
+          </div>
+          <Progress value={agent.cpuUsage} className={`h-1 ${getCpuColor(agent.cpuUsage)}`} />
+        </div>
+        <div className="p-1.5 rounded bg-muted/30">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[9px] text-muted-foreground">MEM</span>
+            <span className="text-[9px] font-mono">{agent.memoryUsage}MB</span>
+          </div>
+          <Progress value={Math.min(agent.memoryUsage / 2, 100)} className="h-1 bg-chart-2" />
+        </div>
       </div>
-      <Progress value={agent.progress} className="h-1 mt-1" />
+      
+      <div className="flex items-center justify-center gap-1.5 text-[10px] font-mono text-chart-3 bg-chart-3/5 rounded py-1 border border-chart-3/20">
+        <Timer className="w-3 h-3" />
+        <span>{agent.executionTime || "00:00"}</span>
+      </div>
     </div>
   )
 }

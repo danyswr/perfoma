@@ -121,6 +121,21 @@ export function useAgents() {
         })) as Agent[],
       )
     }
+    
+    if (lastMessage?.type === "agent_status" && lastMessage.agent_id) {
+      setAgents(prev => prev.map(agent => {
+        if (agent.id === lastMessage.agent_id) {
+          return {
+            ...agent,
+            status: (lastMessage.status || agent.status) as "idle" | "running" | "paused" | "error",
+            lastCommand: lastMessage.last_command || agent.lastCommand,
+            executionTime: formatDuration(lastMessage.execution_time || 0),
+            progress: lastMessage.progress || agent.progress,
+          }
+        }
+        return agent
+      }))
+    }
   }, [lastMessage])
 
   useEffect(() => {
@@ -188,12 +203,13 @@ export function useAgents() {
     try {
       const missionConfig = getMissionConfig()
       
+      const aggressiveLevel = missionConfig?.aggressiveLevel ?? 1
       const agentConfig = {
         target: config?.target || missionConfig?.target || "",
         category: config?.category || missionConfig?.category || "domain",
         custom_instruction: config?.custom_instruction || missionConfig?.customInstruction || "",
         stealth_mode: config?.stealth_mode ?? missionConfig?.stealthMode ?? false,
-        aggressive_mode: config?.aggressive_mode ?? (missionConfig?.aggressiveLevel > 2) ?? false,
+        aggressive_mode: config?.aggressive_mode ?? (aggressiveLevel > 2),
         model_name: config?.model_name || missionConfig?.modelName || "openai/gpt-4-turbo",
       }
       
