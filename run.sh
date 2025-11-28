@@ -6,7 +6,7 @@ mkdir -p logs findings
 
 echo "🚀 Starting Backend on 0.0.0.0:8000..."
 cd backend
-uvicorn main:app --host 0.0.0.0 --port 8000 > ../logs/backend.log 2>&1 &
+uv run uvicorn main:app --host 0.0.0.0 --port 8000 > ../logs/backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
 
