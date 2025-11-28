@@ -105,6 +105,9 @@ class AgentWorker:
                     self.context_history[-10:]  # Last 10 messages
                 )
                 
+                # Broadcast model instruction via WebSocket
+                await self._broadcast_model_instruction(response)
+                
                 # Add to context
                 self.context_history.append({
                     "role": "user",
@@ -497,3 +500,30 @@ Use <END!> when mission objectives are met.
         """Stop agent execution"""
         self.stopped = True
         self.status = "stopped"
+    
+    async def _broadcast_model_instruction(self, response: str):
+        """Broadcast model instruction to WebSocket clients"""
+        try:
+            from server.ws import manager
+            
+            # Determine instruction type based on content
+            instruction_type = "analysis"
+            if "RUN " in response:
+                instruction_type = "command"
+            elif "<write>" in response or "finding" in response.lower():
+                instruction_type = "decision"
+            
+            # Extract a summary of the response (first 500 chars)
+            summary = response[:500] + ("..." if len(response) > 500 else "")
+            
+            await manager.broadcast({
+                "type": "model_instruction",
+                "agent_id": self.agent_id,
+                "model_name": self.model_name,
+                "instruction": summary,
+                "instruction_type": instruction_type,
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception as e:
+            # Silent fail for broadcast errors
+            pass

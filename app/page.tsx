@@ -24,7 +24,6 @@ import {
 import { ResourceMonitor } from "@/components/dashboard/resource-monitor"
 import { MissionTimer } from "@/components/dashboard/mission-timer"
 import { ModelInstructions } from "@/components/dashboard/model-instructions"
-import { AgentResourceGraph } from "@/components/dashboard/agent-resource-graph"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useMission } from "@/hooks/use-mission"
 import { useAgents } from "@/hooks/use-agents"
@@ -354,8 +353,8 @@ export default function Dashboard() {
                         <p className="text-xs">No findings yet</p>
                       </div>
                     ) : (
-                      findings.map((finding) => (
-                        <FindingCard key={finding.id} finding={finding} />
+                      findings.map((finding, index) => (
+                        <FindingCard key={finding.id || `finding-${index}`} finding={finding} />
                       ))
                     )}
                   </div>
@@ -726,12 +725,6 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
       <div className="p-1 rounded bg-black/60 font-mono text-[9px] text-green-400 truncate mb-1.5">
         {agent.lastCommand || "Waiting..."}
       </div>
-      <AgentResourceGraph 
-        agentId={agent.id}
-        cpuUsage={agent.cpuUsage}
-        memoryUsage={agent.memoryUsage}
-        compact={true}
-      />
       <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1.5">
         <span className="capitalize">{agent.status}</span>
         <span>{agent.progress}%</span>
@@ -868,6 +861,74 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
             <div className="flex-1 min-h-0">
               <ModelInstructions />
             </div>
+          ) : sidebarTab === "queue" ? (
+          <div className="flex-1 flex flex-col p-3">
+            <div className="mb-3">
+              <p className="text-xs text-muted-foreground mb-2">Quick Actions</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-xs justify-start"
+                  onClick={() => { sendQueueCommand("/queue list"); }}
+                >
+                  <ListOrdered className="w-3 h-3 mr-1.5" />
+                  View Queue
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-xs justify-start"
+                  onClick={() => { setInput('/queue add {"1": "RUN nmap -sV target"}'); }}
+                >
+                  <Terminal className="w-3 h-3 mr-1.5" />
+                  Add Command
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-xs justify-start"
+                  onClick={() => { setInput("/queue rm 1"); }}
+                >
+                  <Trash2 className="w-3 h-3 mr-1.5" />
+                  Remove #1
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-8 text-xs justify-start"
+                  onClick={() => { setInput('/queue edit 1 {"1": "RUN nikto -h target"}'); }}
+                >
+                  <RefreshCw className="w-3 h-3 mr-1.5" />
+                  Edit #1
+                </Button>
+              </div>
+            </div>
+            <div className="mb-3">
+              <p className="text-xs text-muted-foreground mb-2">Command Format</p>
+              <div className="space-y-1.5 text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg">
+                <p><code className="bg-muted px-1 rounded">/queue list</code> - View all commands</p>
+                <p><code className="bg-muted px-1 rounded">/queue add {`{"1": "RUN cmd"}`}</code> - Add command</p>
+                <p><code className="bg-muted px-1 rounded">/queue rm 1</code> - Remove by index</p>
+                <p><code className="bg-muted px-1 rounded">/queue edit 1 {`{json}`}</code> - Edit command</p>
+              </div>
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="space-y-3">
+                {messages.filter(m => m.content.includes("queue") || m.content.includes("Queue")).map((msg) => (
+                  <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user" ? "bg-primary/20" : "bg-muted"}`}>
+                      {msg.role === "user" ? <User className="w-3 h-3 text-primary" /> : <Bot className="w-3 h-3" />}
+                    </div>
+                    <div className={`max-w-[80%] rounded-lg px-3 py-2 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                      <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
+                      <p className="text-[10px] opacity-70 mt-1">{msg.timestamp}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
           ) : (
           <ScrollArea className="flex-1 p-3">
             {messages.length === 0 ? (
@@ -875,9 +936,7 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
                 <Bot className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">Start a conversation</p>
                 <div className="mt-4 text-left text-xs space-y-1">
-                  <p><code className="bg-muted px-1 rounded">/chat</code> - Chat mode</p>
-                  <p><code className="bg-muted px-1 rounded">/queue list</code> - View queue</p>
-                  <p><code className="bg-muted px-1 rounded">/queue add</code> - Add command</p>
+                  <p className="text-muted-foreground">Chat with the AI assistant to get help with security analysis</p>
                 </div>
               </div>
             ) : (
