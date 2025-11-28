@@ -4,6 +4,16 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-28**: Agent Card and Real-time Updates Improvements
+  - Replaced progress bar with execution time display in AgentCard component
+  - Updated AgentCard styling to match ResourceMonitor with CPU/Memory bars
+  - Added real-time agent status broadcasts via WebSocket (agent_status message type)
+  - Fixed Model Instructions history persistence using dual localStorage strategy
+  - Improved WebSocket message handling to properly merge updates without overwriting existing values
+  - Added module-level psutil priming for non-blocking CPU/memory sampling
+  - Fixed CPU metrics to accept 0% values as valid readings
+  - Added caching for last known CPU/memory values as fallback
+
 - **2024-11-28**: UI and Queue panel improvements
   - Removed CPU/Memory graphs from agent cards (now only in detail dialog) for cleaner interface
   - Fixed Queue panel buttons to use backend-supported commands: /queue list, /queue add {json}, /queue rm index, /queue edit
