@@ -53,7 +53,7 @@ export default function Dashboard() {
     customInstruction: "",
     stealthMode: true,
     aggressiveLevel: 1,
-    modelName: "openai/gpt-4-turbo",
+    modelName: "anthropic/claude-3.5-sonnet",
     numAgents: 3,
     stealthOptions: DEFAULT_STEALTH_OPTIONS,
     capabilities: DEFAULT_CAPABILITY_OPTIONS,

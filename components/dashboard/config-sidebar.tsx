@@ -49,12 +49,12 @@ interface ConfigSidebarProps {
 }
 
 const MODELS = [
-  { id: "openai/gpt-4-turbo", name: "GPT-4 Turbo", provider: "OpenAI" },
-  { id: "openai/gpt-4o", name: "GPT-4o", provider: "OpenAI" },
+  { id: "anthropic/claude-sonnet-4", name: "Claude Sonnet 4", provider: "Anthropic" },
   { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet", provider: "Anthropic" },
   { id: "anthropic/claude-3-opus", name: "Claude 3 Opus", provider: "Anthropic" },
+  { id: "openai/gpt-4-turbo", name: "GPT-4 Turbo", provider: "OpenAI" },
+  { id: "openai/gpt-4o", name: "GPT-4o", provider: "OpenAI" },
   { id: "google/gemini-pro-1.5", name: "Gemini Pro 1.5", provider: "Google" },
-  { id: "mistralai/mistral-large", name: "Mistral Large", provider: "Mistral" },
   { id: "meta-llama/llama-3.1-405b-instruct", name: "Llama 3.1 405B", provider: "Meta" },
   { id: "custom", name: "Custom Model", provider: "OpenRouter" },
 ]
@@ -89,7 +89,7 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
     customInstruction: "",
     stealthMode: true,
     aggressiveMode: false,
-    modelName: "openai/gpt-4-turbo",
+    modelName: "anthropic/claude-3.5-sonnet",
     numAgents: 3,
   })
   const [customModelId, setCustomModelId] = useState("")
