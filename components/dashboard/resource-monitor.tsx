@@ -151,8 +151,21 @@ interface ResourceBarProps {
   max?: number
 }
 
+function formatNetworkValue(value: number): { display: string; unit: string } {
+  if (value >= 1024 * 1024) {
+    return { display: (value / (1024 * 1024)).toFixed(1), unit: "GB/s" }
+  } else if (value >= 1024) {
+    return { display: (value / 1024).toFixed(1), unit: "MB/s" }
+  } else {
+    return { display: value.toFixed(0), unit: "KB/s" }
+  }
+}
+
 function ResourceBar({ icon: Icon, label, value, unit, color, textColor, max = 100 }: ResourceBarProps) {
   const percentage = Math.min((value / max) * 100, 100)
+  
+  const isNetwork = unit === "KB/s"
+  const displayValue = isNetwork ? formatNetworkValue(value) : null
 
   return (
     <div className="p-3 rounded-lg bg-muted/30 space-y-2">
@@ -162,8 +175,7 @@ function ResourceBar({ icon: Icon, label, value, unit, color, textColor, max = 1
           <span className="text-xs text-muted-foreground">{label}</span>
         </div>
         <span className={`text-sm font-mono font-medium ${textColor}`}>
-          {value}
-          {unit}
+          {isNetwork && displayValue ? `${displayValue.display}${displayValue.unit}` : `${value}${unit}`}
         </span>
       </div>
       <Progress value={percentage} className={`h-1.5 ${color}`} />

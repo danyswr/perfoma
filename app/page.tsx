@@ -295,7 +295,7 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <ScrollArea className="h-full">
-                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-2">
+                    <div className="flex flex-col gap-2 p-2">
                       {agents.map((agent) => (
                         <AgentCard
                           key={agent.id}
@@ -652,10 +652,24 @@ export default function Dashboard() {
 }
 
 
+function formatExecutionTime(timeStr: string | undefined): string {
+  if (!timeStr) return "00:00:00"
+  const parts = timeStr.split(':').map(p => {
+    const num = parseInt(p, 10)
+    return isNaN(num) ? 0 : num
+  })
+  if (parts.length === 3) {
+    return `${parts[0].toString().padStart(2, '0')}:${parts[1].toString().padStart(2, '0')}:${parts[2].toString().padStart(2, '0')}`
+  } else if (parts.length === 2) {
+    return `00:${parts[0].toString().padStart(2, '0')}:${parts[1].toString().padStart(2, '0')}`
+  }
+  return "00:00:00"
+}
+
 function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: () => void }) {
   const [cpuHistory, setCpuHistory] = useState<{value: number, time: string}[]>([])
   const [memHistory, setMemHistory] = useState<{value: number, time: string}[]>([])
-  const [displayTime, setDisplayTime] = useState(agent?.executionTime || "00:00")
+  const [displayTime, setDisplayTime] = useState(formatExecutionTime(agent?.executionTime))
 
   useEffect(() => {
     if (!agent) return
@@ -681,14 +695,14 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: ()
   }, [agent])
 
   useEffect(() => {
-    if (agent) setDisplayTime(agent.executionTime || "00:00")
+    if (agent) setDisplayTime(formatExecutionTime(agent.executionTime))
   }, [agent?.executionTime])
 
   useEffect(() => {
     if (!agent || agent.status !== "running") return
     
     const parseTime = (timeStr: string): number => {
-      const parts = timeStr.split(':').map(Number)
+      const parts = timeStr.split(':').map(p => parseInt(p, 10) || 0)
       if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
       if (parts.length === 2) return parts[0] * 60 + parts[1]
       return 0
@@ -697,11 +711,11 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: ()
     const formatSeconds = (totalSeconds: number): string => {
       const hrs = Math.floor(totalSeconds / 3600)
       const mins = Math.floor((totalSeconds % 3600) / 60)
-      const secs = totalSeconds % 60
+      const secs = Math.floor(totalSeconds % 60)
       return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
     }
     
-    let baseSeconds = parseTime(agent.executionTime || "00:00")
+    let baseSeconds = parseTime(formatExecutionTime(agent.executionTime))
     const interval = setInterval(() => {
       baseSeconds += 1
       setDisplayTime(formatSeconds(baseSeconds))
@@ -840,17 +854,17 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: ()
 }
 
 function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Agent; onDetail: () => void; onPause: () => void; onResume: () => void; onRemove: () => void }) {
-  const [displayTime, setDisplayTime] = useState(agent.executionTime || "00:00")
+  const [displayTime, setDisplayTime] = useState(formatExecutionTime(agent.executionTime))
   
   useEffect(() => {
-    setDisplayTime(agent.executionTime || "00:00")
+    setDisplayTime(formatExecutionTime(agent.executionTime))
   }, [agent.executionTime])
 
   useEffect(() => {
     if (agent.status !== "running") return
     
     const parseTime = (timeStr: string): number => {
-      const parts = timeStr.split(':').map(Number)
+      const parts = timeStr.split(':').map(p => parseInt(p, 10) || 0)
       if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
       if (parts.length === 2) return parts[0] * 60 + parts[1]
       return 0
@@ -859,12 +873,11 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
     const formatSeconds = (totalSeconds: number): string => {
       const hrs = Math.floor(totalSeconds / 3600)
       const mins = Math.floor((totalSeconds % 3600) / 60)
-      const secs = totalSeconds % 60
-      if (hrs > 0) return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      const secs = Math.floor(totalSeconds % 60)
+      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
     }
     
-    let baseSeconds = parseTime(agent.executionTime || "00:00")
+    let baseSeconds = parseTime(formatExecutionTime(agent.executionTime))
     const interval = setInterval(() => {
       baseSeconds += 1
       setDisplayTime(formatSeconds(baseSeconds))

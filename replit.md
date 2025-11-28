@@ -4,6 +4,12 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-28**: UI Responsiveness and Layout Improvements
+  - Fixed Network resource display to auto-format large values (KB/s → MB/s → GB/s)
+  - Changed Active Agents from grid layout to vertical list for better readability
+  - Cleaned up execution time format to show consistent "00:00:00" format (HH:MM:SS)
+  - Fixed decimal overflow in agent detail modal execution time display
+
 - **2024-11-28**: UI Polish and Export Improvements
   - Simplified agent cards to focus on execution time with live timer
   - Created comprehensive agent detail modal with CPU/Memory monitoring charts (Recharts)
