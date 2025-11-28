@@ -39,7 +39,7 @@ export default function Dashboard() {
   const [configTab, setConfigTab] = useState("target")
   
   const { mission, startMission, stopMission } = useMission()
-  const { agents, syncAgents, pauseAgent, resumeAgent, removeAgent } = useAgents()
+  const { agents, syncAgents, pauseAgent, resumeAgent, removeAgent, addAgent } = useAgents()
   const { resources } = useResources()
   const { findings, severitySummary, exportFindings, exportHtmlReport } = useFindings()
   
@@ -220,6 +220,35 @@ export default function Dashboard() {
                     <CardTitle className="text-base">Active Agents</CardTitle>
                     <Badge variant="secondary">{agents.length}/10</Badge>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addAgent({
+                        target: config.target,
+                        category: config.category,
+                        model_name: config.modelName,
+                        stealth_mode: config.stealthMode,
+                        aggressive_mode: config.aggressiveLevel > 2
+                      })}
+                      disabled={agents.length >= 10 || backendStatus !== "online"}
+                      className="h-7 text-xs"
+                    >
+                      <Bot className="w-3 h-3 mr-1" />
+                      Add Agent
+                    </Button>
+                    {agents.length > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => agents.forEach(a => removeAgent(a.id))}
+                        className="h-7 text-xs text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-3 h-3 mr-1" />
+                        Clear All
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="flex-1 overflow-hidden p-2">
@@ -227,7 +256,21 @@ export default function Dashboard() {
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                     <Bot className="w-12 h-12 mb-2 opacity-20" />
                     <p className="text-sm">No agents deployed</p>
-                    <p className="text-xs">Configure and start a mission</p>
+                    <p className="text-xs">Configure and start a mission or add agents manually</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addAgent({
+                        target: config.target,
+                        category: config.category,
+                        model_name: config.modelName
+                      })}
+                      disabled={backendStatus !== "online"}
+                      className="mt-3"
+                    >
+                      <Bot className="w-4 h-4 mr-2" />
+                      Add First Agent
+                    </Button>
                   </div>
                 ) : (
                   <ScrollArea className="h-full">

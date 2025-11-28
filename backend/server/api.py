@@ -66,6 +66,14 @@ async def start_operation(target: TargetInput, background_tasks: BackgroundTasks
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class CreateAgentInput(BaseModel):
+    target: str = ""
+    category: str = "domain"
+    custom_instruction: Optional[str] = None
+    stealth_mode: bool = False
+    aggressive_mode: bool = False
+    model_name: str = "openai/gpt-4-turbo"
+
 @router.get("/agents")
 async def get_agents():
     """Get all active agents with their status"""
@@ -75,6 +83,32 @@ async def get_agents():
             "agents": agents,
             "total": len(agents)
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/agents")
+async def create_agent(data: CreateAgentInput):
+    """Create a single agent manually"""
+    try:
+        agent_id = await agent_manager.create_single_agent(
+            target=data.target,
+            category=data.category,
+            custom_instruction=data.custom_instruction,
+            stealth_mode=data.stealth_mode,
+            aggressive_mode=data.aggressive_mode,
+            model_name=data.model_name
+        )
+        if not agent_id:
+            raise HTTPException(status_code=400, detail="Maximum 10 agents allowed")
+        
+        agent = await agent_manager.get_agent(agent_id)
+        return {
+            "status": "created",
+            "agent_id": agent_id,
+            "agent": agent
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

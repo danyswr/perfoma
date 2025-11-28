@@ -134,21 +134,34 @@ export function useAgents() {
     setAgents(newAgents)
   }, [])
 
-  const addAgent = useCallback(async () => {
-    if (agents.length >= 10) return
+  const addAgent = useCallback(async (config?: {
+    target?: string
+    category?: string
+    custom_instruction?: string
+    stealth_mode?: boolean
+    aggressive_mode?: boolean
+    model_name?: string
+  }) => {
+    if (agents.length >= 10) return null
     try {
       setLoading(true)
-      const response = await (api as any).createAgent()
+      const response = await api.createAgent(config)
       if (response.data?.agent) {
-        // Refresh list setelah create berhasil untuk mendapatkan ID & data yang benar
-        fetchAgents()
+        const newAgent = transformAgent(response.data.agent, agents.length)
+        setAgents(prev => [...prev, newAgent])
+        return response.data.agent_id
       }
+      if (response.error) {
+        console.error("Failed to create agent:", response.error)
+      }
+      return null
     } catch (error) {
       console.error("Failed to create agent:", error)
+      return null
     } finally {
       setLoading(false)
     }
-  }, [agents.length, fetchAgents])
+  }, [agents.length])
 
   return {
     agents,

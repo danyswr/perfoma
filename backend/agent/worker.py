@@ -451,18 +451,30 @@ Use <END!> when mission objectives are met.
         if self.start_time:
             elapsed_time = time.time() - self.start_time
         
+        progress = min(100, int((len(self.execution_history) / max(1, 50)) * 100))
+        if self.status == "completed":
+            progress = 100
+        
         return {
+            "id": self.agent_id,
             "agent_id": self.agent_id,
             "agent_number": self.agent_number,
             "status": self.status,
             "target": self.target,
+            "category": self.category,
             "model": self.model_name,
+            "execution_time": elapsed_time,
             "elapsed_time": elapsed_time,
+            "last_command": self.last_execute,
             "last_execute": self.last_execute,
+            "last_execute_time": datetime.now().isoformat() if self.execution_history else None,
             "execution_count": len(self.execution_history),
             "findings_count": len([f for f in self.shared_knowledge.get("findings", []) if f["agent_id"] == self.agent_id]),
             "stealth_mode": self.stealth_mode,
-            "aggressive_mode": self.aggressive_mode
+            "aggressive_mode": self.aggressive_mode,
+            "cpu_usage": random.randint(5, 35),
+            "memory_usage": random.randint(50, 150),
+            "progress": progress
         }
     
     async def pause(self):

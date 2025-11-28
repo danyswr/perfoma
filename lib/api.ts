@@ -85,14 +85,21 @@ export const api = {
     }
   },
 
-  async createAgent() {
+  async createAgent(config?: {
+    target?: string
+    category?: string
+    custom_instruction?: string
+    stealth_mode?: boolean
+    aggressive_mode?: boolean
+    model_name?: string
+  }) {
     try {
-      // This endpoint doesn't exist in the backend - agents are created via startMission
-      // Return a stub response to prevent errors
-      return {
-        error: "Agents are created via mission start. Use startMission instead.",
-        data: null,
-      }
+      const res = await fetch(`${API_BASE}/api/agents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(config || {}),
+      })
+      return handleResponse<{ status: string; agent_id: string; agent: AgentResponse }>(res)
     } catch {
       return { error: "Cannot create agent" }
     }

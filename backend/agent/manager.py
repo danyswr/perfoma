@@ -133,6 +133,46 @@ class AgentManager:
         
         return status
     
+    async def create_single_agent(
+        self,
+        target: str = "",
+        category: str = "domain",
+        custom_instruction: Optional[str] = None,
+        stealth_mode: bool = False,
+        aggressive_mode: bool = False,
+        model_name: str = "openai/gpt-4-turbo"
+    ) -> Optional[str]:
+        """Create a single agent manually"""
+        if len(self.agents) >= 10:
+            return None
+        
+        agent_number = len(self.agents) + 1
+        agent_id = f"agent-{uuid.uuid4().hex[:8]}"
+        
+        agent = AgentWorker(
+            agent_id=agent_id,
+            agent_number=agent_number,
+            target=target,
+            category=category,
+            custom_instruction=custom_instruction,
+            stealth_mode=stealth_mode,
+            aggressive_mode=aggressive_mode,
+            model_name=model_name,
+            shared_knowledge=self.shared_knowledge,
+            logger=self.logger,
+            stealth_config=None
+        )
+        
+        self.agents[agent_id] = agent
+        
+        await self.logger.log_event(
+            f"Agent {agent_id} created manually",
+            "system",
+            {"agent_number": agent_number}
+        )
+        
+        return agent_id
+
     async def delete_agent(self, agent_id: str) -> bool:
         """Stop and delete an agent"""
         if agent_id not in self.agents:
