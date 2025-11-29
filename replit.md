@@ -4,6 +4,25 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-29**: Batch JSON Commands & Target-Filtered Findings ✅
+  - ✅ CHANGED: Model output format changed to strict JSON batch commands (3 batches, 3 commands each)
+    - Format: `{"batch_1": {"1": "RUN cmd", "2": "RUN cmd2"}, "batch_2": {...}, "batch_3": {...}}`
+    - Agents extract only their commands based on agent_number
+    - Supports `{"status": "END"}` for mission completion
+  - ✅ ADDED: Target-filtered findings in memory.py
+    - `get_findings_for_target(agent_id, target)` - retrieves findings for specific target only
+    - `get_target_context(agent_id, target)` - gets full context including findings, knowledge, and history
+  - ✅ FIXED: False credit error handling in models/router.py
+    - Now validates actual credit-related keywords before raising "Insufficient credits"
+  - ✅ IMPROVED: Per-agent queue separation in queue_distributor.py
+    - Each agent has independent queue with async locks
+    - Duplicate command prevention across batches
+    - Agents don't wait for each other's queue operations
+  - ✅ CHANGED: Instruction history now shows only commands, not full model responses
+    - `get_instruction_history()` returns only extracted commands
+    - `_save_instruction_to_history()` stores command per entry
+  - STATUS: System optimized for token efficiency and multi-target operations
+
 - **2024-11-28**: Advanced Agent Intelligence Features ✅
   - ✅ ADDED: SQLite-based persistent memory system (agent/memory.py)
     - Conversation history, findings, knowledge base storage
