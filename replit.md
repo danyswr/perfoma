@@ -4,25 +4,25 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
-- **2024-11-29**: Memory Optimization & Performance Improvements ✅
-  - ✅ OPTIMIZED: Agent memory consumption with bounded history limits
-    - context_history: limited to 6 items (was unbounded)
-    - execution_history: limited to 15 items
-    - instruction_history: limited to 10 items
-  - ✅ ADDED: Automatic memory trimming with garbage collection
-    - GC runs every 5 iterations to free unused memory
-    - Content truncation: role 2000 chars, assistant 3000 chars
-  - ✅ IMPROVED: WebSocket broadcasts use fresh resource metrics
-    - Real-time CPU/memory readings on each broadcast
-    - Optimized progress calculation (len * 7 + 5)
-  - ✅ FIXED: Agent cleanup runs after loop completes (not in finally block)
-    - Prevents cleanup during active execution
-    - Proper throttler unregistration after agent finishes
-  - ✅ OPTIMIZED: SQLite database performance
-    - WAL mode enabled for better concurrency
-    - synchronous=NORMAL, cache_size=-8000, temp_store=MEMORY
-  - ✅ REDUCED: Throttler cache TTL from 2.0s to 1.5s
-  - STATUS: System now runs more efficiently with bounded memory growth
+- **2024-11-29**: Comprehensive Memory Optimization ✅
+  - ✅ OPTIMIZED: Worker.py agent memory with strict limits
+    - context_history: 6 items max (auto-trimmed)
+    - execution_history: 15 items max
+    - instruction_history: 10 items max
+    - GC runs every 5 iterations with forced collection
+  - ✅ OPTIMIZED: Collaboration.py message bus limits
+    - Message queue: 100 messages per agent max
+    - Shared discoveries: 50 items max
+    - Completed tasks: 100 items max (uses set)
+  - ✅ OPTIMIZED: Shared_queue.py instruction limits
+    - Pending instructions: 50 max
+    - Executed history: 25 items max
+    - Result content: 500 chars max
+  - ✅ OPTIMIZED: Throttle.py auto-cleanup for stale states
+    - Agent states: 15 max, stale after 5 minutes, cleanup every 30s
+    - Rate limiter model states: 10 max, stale after 10 minutes, cleanup every 60s
+  - ✅ OPTIMIZED: Cache TTL reduced from 2.0s to 1.0s
+  - STATUS: System now runs with bounded memory growth across all subsystems
 
 - **2024-11-29**: UI Improvements & Ollama Support ✅
   - ✅ ADDED: Ollama local model support in AI provider list
