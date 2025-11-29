@@ -20,6 +20,11 @@ class AgentMemory:
             
         async with self._lock:
             async with aiosqlite.connect(self.db_path) as db:
+                await db.execute("PRAGMA journal_mode=WAL")
+                await db.execute("PRAGMA synchronous=NORMAL")
+                await db.execute("PRAGMA cache_size=-8000")
+                await db.execute("PRAGMA temp_store=MEMORY")
+                
                 await db.executescript("""
                     -- Agent registry table
                     CREATE TABLE IF NOT EXISTS agents (

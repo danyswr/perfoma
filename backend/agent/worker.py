@@ -97,6 +97,12 @@ class AgentWorker:
         self._last_cpu_usage: Optional[float] = None
         self._last_memory_usage: Optional[int] = None
         
+        self._max_context_history = 6
+        self._max_execution_history = 15
+        self._max_instruction_history = 10
+        self._gc_counter = 0
+        self._gc_interval = 5
+        
         self.memory: AgentMemory = get_memory()
         throttler, rate_limiter, agent_comm, knowledge_base = _get_shared_instances()
         self.throttler = throttler
@@ -115,6 +121,36 @@ class AgentWorker:
             "file": ["static_analysis", "code_review"]
         }
         return spec_map.get(self.category, ["general"])
+    
+    def _trim_memory(self):
+        """Trim in-memory lists to prevent memory buildup - keeps agent lightweight"""
+        import gc
+        
+        if len(self.context_history) > self._max_context_history * 2:
+            self.context_history = self.context_history[-self._max_context_history:]
+        
+        if len(self.execution_history) > self._max_execution_history:
+            self.execution_history = self.execution_history[-self._max_execution_history:]
+        
+        if len(self.instruction_history) > self._max_instruction_history:
+            self.instruction_history = self.instruction_history[-self._max_instruction_history:]
+        
+        self._gc_counter += 1
+        if self._gc_counter >= self._gc_interval:
+            gc.collect()
+            self._gc_counter = 0
+    
+    def _cleanup_on_complete(self):
+        """Clean up memory when agent completes - free up resources"""
+        import gc
+        
+        self.context_history.clear()
+        self.execution_history = self.execution_history[-3:]
+        self.instruction_history = self.instruction_history[-3:]
+        
+        self.throttler.unregister_agent(self.agent_id)
+        
+        gc.collect()
         
     async def start(self):
         """Start agent execution with memory, throttling, and collaboration initialization"""
@@ -234,28 +270,47 @@ class AgentWorker:
             )
     
     async def _broadcast_status_update(self):
-        """Broadcast current status to WebSocket clients"""
+        """Broadcast current status to WebSocket clients - optimized version"""
         try:
             from server.ws import manager
-            status = await self.get_status()
+            
+            exec_time = self._get_execution_time_str()
+            progress = min(100, len(self.execution_history) * 7 + 5)
+            
+            if PSUTIL_AVAILABLE and psutil:
+                try:
+                    self._last_cpu_usage = psutil.cpu_percent(interval=None)
+                    mem = psutil.virtual_memory()
+                    self._last_memory_usage = int(mem.used / 1024 / 1024)
+                except:
+                    pass
             
             message = {
                 "type": "agent_status",
                 "agent_id": self.agent_id,
-                "status": status["status"],
-                "last_command": status["last_command"],
-                "execution_time": status["execution_time"],
-                "progress": status["progress"]
+                "status": self.status,
+                "last_command": self.last_execute[:120] if self.last_execute else "",
+                "execution_time": exec_time,
+                "progress": progress
             }
             
-            if "cpu_usage" in status:
-                message["cpu_usage"] = status["cpu_usage"]
-            if "memory_usage" in status:
-                message["memory_usage"] = status["memory_usage"]
+            if self._last_cpu_usage is not None:
+                message["cpu_usage"] = round(self._last_cpu_usage, 1)
+            if self._last_memory_usage is not None:
+                message["memory_usage"] = self._last_memory_usage
             
             await manager.broadcast(message)
         except Exception:
             pass
+    
+    def _get_execution_time_str(self) -> str:
+        """Get formatted execution time string"""
+        if not self.start_time:
+            return "00:00"
+        elapsed = int(time.time() - self.start_time)
+        mins = elapsed // 60
+        secs = elapsed % 60
+        return f"{mins:02d}:{secs:02d}"
     
     async def _broadcast_queue_update(self):
         """Broadcast shared queue state to WebSocket clients"""
@@ -343,7 +398,7 @@ class AgentWorker:
                     self.model_name,
                     system_prompt,
                     user_message,
-                    self.context_history[-10:]
+                    self.context_history[-self._max_context_history:]
                 )
                 execution_time = time.time() - start_time
                 
@@ -368,12 +423,14 @@ class AgentWorker:
                 
                 self.context_history.append({
                     "role": "user",
-                    "content": user_message
+                    "content": user_message[:2000]
                 })
                 self.context_history.append({
                     "role": "assistant",
-                    "content": response
+                    "content": response[:3000]
                 })
+                
+                self._trim_memory()
                 
                 if "<END!>" in response or '"status": "END"' in response or '"status":"END"' in response:
                     self.last_execute = "Mission completed successfully"
@@ -463,6 +520,8 @@ class AgentWorker:
         
         self.status = "completed"
         await self._broadcast_status_update()
+        
+        self._cleanup_on_complete()
     
     async def _build_user_message_with_collaboration(self, iteration: int) -> str:
         """Build user message with collaboration data from other agents"""

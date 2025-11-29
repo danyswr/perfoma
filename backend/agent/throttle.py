@@ -80,7 +80,7 @@ class IntelligentThrottler:
         self._network_baseline = self._get_network_io()
         self._cached_resources: Dict[str, float] = {}
         self._cache_time: Optional[datetime] = None
-        self._cache_ttl = 2.0
+        self._cache_ttl = 1.5
     
     def _get_disk_io(self) -> float:
         """Get current disk I/O"""
