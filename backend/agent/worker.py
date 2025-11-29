@@ -257,20 +257,35 @@ class AgentWorker:
         except Exception:
             pass
     
+    async def _broadcast_queue_update(self):
+        """Broadcast shared queue state to WebSocket clients"""
+        try:
+            from server.ws import manager
+            from agent.shared_queue import get_shared_queue
+            shared_queue = get_shared_queue()
+            queue_state = await shared_queue.get_queue_state()
+            
+            await manager.broadcast({
+                "type": "queue_update",
+                "queue": queue_state,
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception:
+            pass
+    
     async def _run_autonomous_loop(self):
-        """Main autonomous execution loop - token efficient with command queue"""
+        """Main autonomous execution loop - uses shared queue for token efficiency"""
         
         system_prompt = self._build_system_prompt()
         
         iteration = 0
         max_iterations = 50
-        pending_commands = []
         
         self.last_execute = f"Starting security analysis of {self.target}..."
         await self._broadcast_status_update()
         
-        from agent.queue_distributor import get_queue_distributor
-        queue_dist = get_queue_distributor()
+        from agent.shared_queue import get_shared_queue
+        shared_queue = get_shared_queue()
         
         while not self.stopped and iteration < max_iterations:
             while self.paused and not self.stopped:
@@ -280,34 +295,18 @@ class AgentWorker:
             if self.stopped:
                 break
             
-            throttle_result = await self.throttler.check_and_throttle(self.agent_id)
-            
-            if throttle_result.get("should_pause"):
-                pause_time = throttle_result.get("pause_remaining", 10)
-                self.last_execute = f"Auto-paused: {throttle_result.get('reason', 'Resource limit')}"
-                await self.logger.log_event(
-                    f"Agent {self.agent_id} auto-throttled",
-                    "throttle",
-                    throttle_result
-                )
-                await self._broadcast_status_update()
-                await asyncio.sleep(min(pause_time, 30))
-                continue
-            
-            if throttle_result.get("throttle_level") in ["HEAVY", "MODERATE"]:
-                delay = throttle_result.get("delay", 2)
-                self.last_execute = f"Throttling: {throttle_result.get('reason', 'High resource usage')}"
-                await asyncio.sleep(delay)
-            
-            queued_cmds = await queue_dist.get_agent_commands(self.agent_id, limit=5)
-            if queued_cmds:
-                pending_commands.extend(queued_cmds)
-                await self._broadcast_event("info", f"Picked up {len(queued_cmds)} commands from queue")
-            
-            if pending_commands:
-                cmd = pending_commands.pop(0)
+            instruction = await shared_queue.claim_next(self.agent_id)
+            if instruction:
+                cmd = instruction.get("command", "")
+                instruction_id = instruction.get("id")
                 if cmd.startswith("RUN "):
-                    await self._execute_single_command(cmd)
+                    self.last_execute = f"Executing: {cmd[4:50]}..."
+                    await self._broadcast_status_update()
+                    try:
+                        await self._execute_single_command(cmd)
+                        await shared_queue.complete_instruction(instruction_id, self.agent_id, "completed")
+                    except Exception as e:
+                        await shared_queue.fail_instruction(instruction_id, self.agent_id, str(e))
                     await self._broadcast_status_update()
                 continue
             
@@ -391,12 +390,13 @@ class AgentWorker:
                 if commands:
                     self._save_instruction_to_history(response, commands)
                     cmd_list = list(commands.values())
-                    pending_commands.extend(cmd_list)
-                    await self._broadcast_event("model_output", f"Model assigned {len(cmd_list)} commands: {', '.join([c[:30] for c in cmd_list[:3]])}...")
+                    added_count = await shared_queue.add_instructions(cmd_list)
+                    await self._broadcast_event("model_output", f"Model queued {added_count} commands to shared queue")
+                    await self._broadcast_queue_update()
                     await self.logger.log_event(
-                        f"Agent {self.agent_id} queued {len(cmd_list)} commands",
+                        f"Agent {self.agent_id} added {added_count} commands to shared queue",
                         "command",
-                        {"commands": len(cmd_list)}
+                        {"commands": added_count}
                     )
                 
                 json_findings = self._extract_findings_from_json(response)
@@ -705,7 +705,7 @@ class AgentWorker:
         await asyncio.sleep(final_delay)
     
     def _build_system_prompt(self) -> str:
-        """Build system prompt for AI model - outputs ONLY batch JSON commands"""
+        """Build system prompt for AI model - outputs sequential queue commands"""
         
         mode_str = "Stealth (evade detection)" if self.stealth_mode else "Aggressive (thorough scanning)" if self.aggressive_mode else "Normal"
         
@@ -719,7 +719,7 @@ class AgentWorker:
             tools_list.extend(list(tools)[:8])
         tools_str = ", ".join(sorted(set(tools_list))[:30])
         
-        prompt = f"""You are Agent #{self.agent_number} - autonomous cybersecurity scanner.
+        prompt = f"""You are an autonomous cybersecurity AI orchestrating multiple agents.
 
 Target: {self.target}
 Category: {self.category}
@@ -727,26 +727,34 @@ Mode: {mode_str}
 {custom_section}
 AVAILABLE TOOLS: {tools_str}
 
-## OUTPUT FORMAT - MANDATORY JSON ONLY
+## OUTPUT FORMAT - SEQUENTIAL QUEUE COMMANDS
 
-You MUST respond with ONLY a JSON object containing 3 batches of commands.
-Each batch has commands for different agents (keys: "1", "2", etc).
-Commands MUST start with "RUN ".
+You MUST respond with a JSON object containing 5-10 commands in a SHARED QUEUE.
+Keys are the queue order (1, 2, 3...), values are commands starting with "RUN ".
+Multiple agents will pick up commands from this queue - whoever finishes first gets the next one.
+
+PREDICT 5-10 COMMANDS at once to save tokens and avoid rate limits!
 
 Example response format:
 ```json
 {{
-  "batch_1": {{"1": "RUN nmap -sV -sC {self.target}", "2": "RUN nikto -h {self.target}"}},
-  "batch_2": {{"1": "RUN gobuster dir -u http://{self.target} -w /usr/share/wordlists/dirb/common.txt", "2": "RUN subfinder -d {self.target}"}},
-  "batch_3": {{"1": "RUN nuclei -u {self.target}", "2": "RUN httpx -l subdomains.txt"}}
+  "1": "RUN nmap -sV -sC {self.target}",
+  "2": "RUN nikto -h {self.target}",
+  "3": "RUN gobuster dir -u http://{self.target} -w /usr/share/wordlists/dirb/common.txt",
+  "4": "RUN subfinder -d {self.target}",
+  "5": "RUN nuclei -u {self.target}",
+  "6": "RUN whatweb {self.target}",
+  "7": "RUN wafw00f {self.target}",
+  "8": "RUN curl -I {self.target}"
 }}
 ```
 
 ## FINDINGS FORMAT
-To report findings, add a "findings" array in JSON:
+To report findings, add a "findings" array:
 ```json
 {{
-  "batch_1": {{"1": "RUN command1", "2": "RUN command2"}},
+  "1": "RUN command1",
+  "2": "RUN command2",
   "findings": [
     {{"severity": "High", "content": "SQL Injection found at /login"}},
     {{"severity": "Medium", "content": "Missing X-Frame-Options header"}}
@@ -762,9 +770,9 @@ When done, respond with:
 
 ## RULES
 - Output ONLY valid JSON, no explanations or text
-- Each batch contains commands for parallel execution by different agents
-- Agent key "1" = Agent #1, "2" = Agent #2, etc.
-- You are Agent #{self.agent_number}, so you execute commands with key "{self.agent_number}"
+- Predict 5-10 commands per response to maximize efficiency
+- Commands are added to a SHARED QUEUE - all agents pick from same queue
+- First agent to finish their current command picks up the next one
 - DO NOT include any text outside the JSON object
 - Use only tools from AVAILABLE TOOLS list
 """
@@ -818,7 +826,7 @@ When done, respond with:
         return message
     
     def _extract_commands(self, response: str) -> Dict[str, str]:
-        """Extract RUN commands from JSON batch response - returns only commands for this agent"""
+        """Extract RUN commands from JSON response - returns ALL commands for shared queue"""
         
         response_clean = response.strip()
         if response_clean.startswith("```json"):
@@ -835,28 +843,25 @@ When done, respond with:
             if data.get("status") == "END":
                 return {}
             
-            agent_key = str(self.agent_number)
-            my_commands = {}
+            all_commands = {}
+            
+            for key, value in data.items():
+                if key.isdigit() and isinstance(value, str) and value.startswith("RUN "):
+                    all_commands[key] = value
+            
+            if all_commands:
+                return all_commands
             
             for batch_name in ["batch_1", "batch_2", "batch_3"]:
                 batch = data.get(batch_name, {})
-                if isinstance(batch, dict) and agent_key in batch:
-                    cmd = batch[agent_key]
-                    if isinstance(cmd, str) and cmd.startswith("RUN "):
-                        cmd_num = len(my_commands) + 1
-                        my_commands[str(cmd_num)] = cmd
+                if isinstance(batch, dict):
+                    for agent_key, cmd in batch.items():
+                        if isinstance(cmd, str) and cmd.startswith("RUN "):
+                            cmd_num = len(all_commands) + 1
+                            all_commands[str(cmd_num)] = cmd
             
-            if not my_commands:
-                for batch_name, batch in data.items():
-                    if isinstance(batch, dict):
-                        if agent_key in batch:
-                            cmd = batch[agent_key]
-                            if isinstance(cmd, str) and cmd.startswith("RUN "):
-                                cmd_num = len(my_commands) + 1
-                                my_commands[str(cmd_num)] = cmd
-            
-            if my_commands:
-                return my_commands
+            if all_commands:
+                return all_commands
                 
         except json.JSONDecodeError:
             pass
@@ -866,7 +871,7 @@ When done, respond with:
         
         if matches:
             commands = {}
-            for i, match in enumerate(matches[:3], 1):
+            for i, match in enumerate(matches[:10], 1):
                 commands[str(i)] = f"RUN {match.strip()}"
             return commands
         

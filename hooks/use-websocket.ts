@@ -29,6 +29,8 @@ export interface WebSocketMessage {
     | "queue_add"
     | "queue_remove"
     | "queue_edit"
+    | "queue_update"
+    | "queue_clear"
     | "chat_response"
     | "agent_update"
     | "agent_status"
@@ -38,7 +40,8 @@ export interface WebSocketMessage {
     | "error"
   message?: string
   mode?: string
-  queue?: QueueItem[]
+  queue?: QueueItem[] | QueueState
+  state?: QueueState
   total?: number
   commands?: Record<string, string>
   agents?: AgentUpdate[]
@@ -54,11 +57,32 @@ export interface WebSocketMessage {
   instruction?: string
   model_name?: string
   instruction_type?: string
+  added?: number
+  timestamp?: string
 }
 
 export interface QueueItem {
   index: number
   command: string
+}
+
+export interface QueueInstruction {
+  id: number
+  command: string
+  status: "pending" | "executing" | "completed"
+  added_at?: string
+  claimed_by?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+}
+
+export interface QueueState {
+  pending: QueueInstruction[]
+  executing: QueueInstruction[]
+  total_pending: number
+  total_executing: number
+  total_completed: number
+  recent_completed: QueueInstruction[]
 }
 
 export interface AgentUpdate {

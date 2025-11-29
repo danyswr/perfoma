@@ -32,6 +32,7 @@ import { useAgents } from "@/hooks/use-agents"
 import { useResources } from "@/hooks/use-resources"
 import { useFindings } from "@/hooks/use-findings"
 import { useChat } from "@/hooks/use-chat"
+import { useWebSocket } from "@/hooks/use-websocket"
 import { checkBackendHealth, api } from "@/lib/api"
 import type { MissionConfig, Agent, Finding, StealthOptions, CapabilityOptions } from "@/lib/types"
 import { OPENROUTER_MODELS, DEFAULT_STEALTH_OPTIONS, DEFAULT_CAPABILITY_OPTIONS } from "@/lib/types"
@@ -653,17 +654,18 @@ export default function Dashboard() {
 
 
 function formatExecutionTime(timeStr: string | undefined): string {
-  if (!timeStr) return "00:00:00"
+  if (!timeStr) return "00:00"
   const parts = timeStr.split(':').map(p => {
     const num = parseInt(p, 10)
     return isNaN(num) ? 0 : num
   })
   if (parts.length === 3) {
-    return `${parts[0].toString().padStart(2, '0')}:${parts[1].toString().padStart(2, '0')}:${parts[2].toString().padStart(2, '0')}`
+    const totalMins = parts[0] * 60 + parts[1]
+    return `${totalMins.toString().padStart(2, '0')}:${parts[2].toString().padStart(2, '0')}`
   } else if (parts.length === 2) {
-    return `00:${parts[0].toString().padStart(2, '0')}:${parts[1].toString().padStart(2, '0')}`
+    return `${parts[0].toString().padStart(2, '0')}:${parts[1].toString().padStart(2, '0')}`
   }
-  return "00:00:00"
+  return "00:00"
 }
 
 function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: () => void }) {
@@ -709,10 +711,9 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: ()
     }
     
     const formatSeconds = (totalSeconds: number): string => {
-      const hrs = Math.floor(totalSeconds / 3600)
-      const mins = Math.floor((totalSeconds % 3600) / 60)
+      const mins = Math.floor(totalSeconds / 60)
       const secs = Math.floor(totalSeconds % 60)
-      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
     }
     
     let baseSeconds = parseTime(formatExecutionTime(agent.executionTime))
@@ -871,10 +872,9 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
     }
     
     const formatSeconds = (totalSeconds: number): string => {
-      const hrs = Math.floor(totalSeconds / 3600)
-      const mins = Math.floor((totalSeconds % 3600) / 60)
+      const mins = Math.floor(totalSeconds / 60)
       const secs = Math.floor(totalSeconds % 60)
-      return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
     }
     
     let baseSeconds = parseTime(formatExecutionTime(agent.executionTime))
@@ -1030,7 +1030,18 @@ function CapToggle({ label, checked, onChange }: { label: string; checked: boole
 function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   const [input, setInput] = useState("")
   const [sidebarTab, setSidebarTab] = useState<"chat" | "queue" | "history">("chat")
+  const [queueState, setQueueState] = useState<{pending: any[], executing: any[], total_pending: number, total_executing: number}>({pending: [], executing: [], total_pending: 0, total_executing: 0})
   const { messages, sendMessage, sendQueueCommand, mode, setMode, connected } = useChat()
+  const { lastMessage } = useWebSocket()
+
+  useEffect(() => {
+    if (lastMessage?.type === "queue_update" && lastMessage.queue) {
+      const q = lastMessage.queue as any
+      if (q.pending !== undefined) {
+        setQueueState(q)
+      }
+    }
+  }, [lastMessage])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -1052,7 +1063,7 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
   }
 
   return (
-    <div className={`h-full border-r border-border flex flex-col transition-all duration-300 ${open ? "w-80" : "w-12"}`}>
+    <div className={`h-full border-r border-border flex flex-col transition-all duration-300 ${open ? "w-72 min-w-[288px] max-w-[320px]" : "w-12"}`}>
       <div className="p-2 border-b border-border flex items-center justify-between shrink-0">
         <Button 
           variant="ghost" 
@@ -1064,13 +1075,13 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
         </Button>
         {open && (
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm">
-              {sidebarTab === "history" ? "Model History" : "Live Chat"}
+            <span className="font-semibold text-sm truncate">
+              {sidebarTab === "history" ? "History" : sidebarTab === "queue" ? "Queue" : "Chat"}
             </span>
             {connected ? (
-              <Badge variant="default" className="text-xs">Online</Badge>
+              <Badge variant="default" className="text-xs shrink-0">Online</Badge>
             ) : (
-              <Badge variant="destructive" className="text-xs">Offline</Badge>
+              <Badge variant="destructive" className="text-xs shrink-0">Offline</Badge>
             )}
           </div>
         )}
@@ -1078,12 +1089,12 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
 
       {open ? (
         <>
-          <div className="px-2 py-1 border-b border-border flex gap-1 shrink-0">
+          <div className="px-1.5 py-1 border-b border-border flex gap-0.5 shrink-0">
             <Button
               variant={sidebarTab === "chat" ? "default" : "ghost"}
               size="sm"
               onClick={() => handleTabChange("chat")}
-              className="h-7 text-xs flex-1 gap-1"
+              className="h-7 text-xs flex-1 gap-1 px-2"
             >
               <MessageSquare className="w-3 h-3" />
               Chat
@@ -1092,16 +1103,19 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
               variant={sidebarTab === "queue" ? "default" : "ghost"}
               size="sm"
               onClick={() => handleTabChange("queue")}
-              className="h-7 text-xs flex-1 gap-1"
+              className="h-7 text-xs flex-1 gap-1 px-2"
             >
               <ListOrdered className="w-3 h-3" />
               Queue
+              {queueState.total_pending > 0 && (
+                <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5">{queueState.total_pending}</Badge>
+              )}
             </Button>
             <Button
               variant={sidebarTab === "history" ? "default" : "ghost"}
               size="sm"
               onClick={() => handleTabChange("history")}
-              className="h-7 text-xs flex-1 gap-1"
+              className="h-7 text-xs flex-1 gap-1 px-2"
             >
               <Brain className="w-3 h-3" />
               History
@@ -1113,72 +1127,103 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
               <ModelInstructions />
             </div>
           ) : sidebarTab === "queue" ? (
-          <div className="flex-1 flex flex-col p-3">
-            <div className="mb-3">
-              <p className="text-xs text-muted-foreground mb-2">Quick Actions</p>
-              <div className="grid grid-cols-2 gap-2">
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="p-2 border-b border-border shrink-0">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium">Shared Queue</span>
+                <div className="flex gap-1">
+                  <Badge variant="outline" className="text-[10px]">Pending: {queueState.total_pending}</Badge>
+                  <Badge variant="secondary" className="text-[10px]">Running: {queueState.total_executing}</Badge>
+                </div>
+              </div>
+              <div className="flex gap-1">
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="h-8 text-xs justify-start"
-                  onClick={() => { sendQueueCommand("/queue list"); }}
+                  className="h-6 text-[10px] flex-1"
+                  onClick={() => sendQueueCommand("/queue list")}
                 >
-                  <ListOrdered className="w-3 h-3 mr-1.5" />
-                  View Queue
+                  Refresh
                 </Button>
                 <Button 
                   variant="outline" 
                   size="sm" 
-                  className="h-8 text-xs justify-start"
-                  onClick={() => { setInput('/queue add {"1": "RUN nmap -sV target"}'); }}
+                  className="h-6 text-[10px] flex-1"
+                  onClick={() => sendQueueCommand("/queue clear")}
                 >
-                  <Terminal className="w-3 h-3 mr-1.5" />
-                  Add Command
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-8 text-xs justify-start"
-                  onClick={() => { setInput("/queue rm 1"); }}
-                >
-                  <Trash2 className="w-3 h-3 mr-1.5" />
-                  Remove #1
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="h-8 text-xs justify-start"
-                  onClick={() => { setInput('/queue edit 1 {"1": "RUN nikto -h target"}'); }}
-                >
-                  <RefreshCw className="w-3 h-3 mr-1.5" />
-                  Edit #1
+                  Clear
                 </Button>
               </div>
             </div>
-            <div className="mb-3">
-              <p className="text-xs text-muted-foreground mb-2">Command Format</p>
-              <div className="space-y-1.5 text-xs text-muted-foreground bg-muted/30 p-2 rounded-lg">
-                <p><code className="bg-muted px-1 rounded">/queue list</code> - View all commands</p>
-                <p><code className="bg-muted px-1 rounded">/queue add {`{"1": "RUN cmd"}`}</code> - Add command</p>
-                <p><code className="bg-muted px-1 rounded">/queue rm 1</code> - Remove by index</p>
-                <p><code className="bg-muted px-1 rounded">/queue edit 1 {`{json}`}</code> - Edit command</p>
-              </div>
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="space-y-3">
-                {messages.filter(m => m.content.includes("queue") || m.content.includes("Queue")).map((msg) => (
-                  <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user" ? "bg-primary/20" : "bg-muted"}`}>
-                      {msg.role === "user" ? <User className="w-3 h-3 text-primary" /> : <Bot className="w-3 h-3" />}
-                    </div>
-                    <div className={`max-w-[80%] rounded-lg px-3 py-2 ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                      <p className="text-xs whitespace-pre-wrap">{msg.content}</p>
-                      <p className="text-[10px] opacity-70 mt-1">{msg.timestamp}</p>
-                    </div>
+            
+            <ScrollArea className="flex-1 p-2">
+              <div className="space-y-2">
+                {queueState.executing.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-medium text-yellow-500 mb-1">Executing</p>
+                    {queueState.executing.map((inst: any) => (
+                      <div key={inst.id} className="p-2 rounded-md bg-yellow-500/10 border border-yellow-500/30 mb-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <Badge variant="outline" className="text-[9px] h-4">#{inst.id}</Badge>
+                          <span className="text-[9px] text-muted-foreground">{inst.claimed_by?.slice(0, 8) || "agent"}</span>
+                        </div>
+                        <p className="text-[10px] font-mono text-yellow-500 truncate">{inst.command}</p>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+                
+                {queueState.pending.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground mb-1">Pending ({queueState.pending.length})</p>
+                    {queueState.pending.map((inst: any, idx: number) => (
+                      <div key={inst.id} className="p-2 rounded-md bg-muted/30 border border-border mb-1 group">
+                        <div className="flex items-center justify-between mb-1">
+                          <Badge variant="outline" className="text-[9px] h-4">#{inst.id}</Badge>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-4 w-4 opacity-0 group-hover:opacity-100"
+                            onClick={() => sendQueueCommand(`/queue rm ${inst.id}`)}
+                          >
+                            <Trash2 className="w-2.5 h-2.5 text-destructive" />
+                          </Button>
+                        </div>
+                        <p className="text-[10px] font-mono text-muted-foreground truncate">{inst.command}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {queueState.pending.length === 0 && queueState.executing.length === 0 && (
+                  <div className="text-center py-6 text-muted-foreground">
+                    <ListOrdered className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                    <p className="text-xs">Queue is empty</p>
+                    <p className="text-[10px]">Commands will appear here when the AI predicts them</p>
+                  </div>
+                )}
               </div>
             </ScrollArea>
+            
+            <div className="p-2 border-t border-border shrink-0">
+              <p className="text-[10px] text-muted-foreground mb-1">Add Command</p>
+              <div className="flex gap-1">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder='{"1": "RUN nmap..."}'
+                  className="h-7 text-xs flex-1"
+                  onKeyDown={(e) => { if (e.key === "Enter") { sendQueueCommand(`/queue add ${input}`); setInput(""); } }}
+                />
+                <Button 
+                  size="sm" 
+                  className="h-7 px-2"
+                  onClick={() => { sendQueueCommand(`/queue add ${input}`); setInput(""); }}
+                >
+                  <Send className="w-3 h-3" />
+                </Button>
+              </div>
+            </div>
           </div>
           ) : (
           <ScrollArea className="flex-1 p-3">

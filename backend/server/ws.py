@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime
 import hashlib
 from agent import get_agent_manager
-from agent.queue import QueueManager
+from agent.shared_queue import get_shared_queue
 
 router = APIRouter()
 
@@ -15,7 +15,9 @@ class ConnectionManager:
         self.chat_mode: Dict[WebSocket, str] = {}
         self._broadcast_task: Optional[asyncio.Task] = None
         self._history_broadcast_task: Optional[asyncio.Task] = None
+        self._queue_broadcast_task: Optional[asyncio.Task] = None
         self._last_history_hash: str = ""
+        self._last_queue_hash: str = ""
         self._running = False
         
     async def connect(self, websocket: WebSocket):
@@ -27,7 +29,6 @@ class ConnectionManager:
         self.active_connections.discard(websocket)
         if websocket in self.chat_mode:
             del self.chat_mode[websocket]
-        # Stop broadcast tasks if no clients remain
         if not self.active_connections:
             self._stop_broadcast_tasks()
             
@@ -38,8 +39,11 @@ class ConnectionManager:
             self._broadcast_task.cancel()
         if self._history_broadcast_task and not self._history_broadcast_task.done():
             self._history_broadcast_task.cancel()
+        if self._queue_broadcast_task and not self._queue_broadcast_task.done():
+            self._queue_broadcast_task.cancel()
         self._broadcast_task = None
         self._history_broadcast_task = None
+        self._queue_broadcast_task = None
             
     async def broadcast(self, message: dict):
         """Broadcast to all connected clients immediately"""
@@ -72,14 +76,16 @@ class ConnectionManager:
             self._broadcast_task = asyncio.create_task(self._broadcast_agent_updates())
         if self._history_broadcast_task is None or self._history_broadcast_task.done():
             self._history_broadcast_task = asyncio.create_task(self._broadcast_history_updates())
+        if self._queue_broadcast_task is None or self._queue_broadcast_task.done():
+            self._queue_broadcast_task = asyncio.create_task(self._broadcast_queue_updates())
     
-    def _compute_history_hash(self, history: List[Dict]) -> str:
-        """Compute hash of history to detect any changes (not just length)"""
-        content = json.dumps(history, sort_keys=True, default=str)
+    def _compute_hash(self, data: any) -> str:
+        """Compute hash of data to detect changes"""
+        content = json.dumps(data, sort_keys=True, default=str)
         return hashlib.md5(content.encode()).hexdigest()
     
     async def _broadcast_agent_updates(self):
-        """Periodically broadcast agent status updates - fast interval for real-time feel"""
+        """Periodically broadcast agent status updates - 200ms for real-time feel"""
         agent_mgr = get_agent_manager()
         while self._running:
             try:
@@ -94,20 +100,18 @@ class ConnectionManager:
                 break
             except Exception as e:
                 print(f"Broadcast error: {e}")
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.2)
     
     async def _broadcast_history_updates(self):
-        """Periodically broadcast instruction history updates with content-based change detection"""
+        """Periodically broadcast instruction history updates"""
         agent_mgr = get_agent_manager()
         while self._running:
             try:
                 if self.active_connections:
                     history = await agent_mgr.get_all_instruction_history()
-                    # Get the last 20 entries for comparison and broadcast
                     recent_history = history[-20:] if history else []
-                    current_hash = self._compute_history_hash(recent_history)
+                    current_hash = self._compute_hash(recent_history)
                     
-                    # Broadcast if content changed (not just length)
                     if current_hash != self._last_history_hash:
                         self._last_history_hash = current_hash
                         await self.broadcast({
@@ -120,10 +124,31 @@ class ConnectionManager:
                 break
             except Exception as e:
                 print(f"History broadcast error: {e}")
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
+    
+    async def _broadcast_queue_updates(self):
+        """Periodically broadcast shared queue state - 200ms for real-time"""
+        shared_queue = get_shared_queue()
+        while self._running:
+            try:
+                if self.active_connections:
+                    queue_state = await shared_queue.get_queue_state()
+                    current_hash = self._compute_hash(queue_state)
+                    
+                    if current_hash != self._last_queue_hash:
+                        self._last_queue_hash = current_hash
+                        await self.broadcast({
+                            "type": "queue_update",
+                            "queue": queue_state,
+                            "timestamp": datetime.now().isoformat()
+                        })
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                print(f"Queue broadcast error: {e}")
+            await asyncio.sleep(0.2)
 
 manager = ConnectionManager()
-queue_manager = QueueManager()
 
 @router.websocket("/live")
 async def websocket_endpoint(websocket: WebSocket):
@@ -131,18 +156,21 @@ async def websocket_endpoint(websocket: WebSocket):
     manager.start_broadcast_task()
     
     agent_mgr = get_agent_manager()
+    shared_queue = get_shared_queue()
     
     try:
+        queue_state = await shared_queue.get_queue_state()
         await manager.send_personal({
             "type": "system",
             "message": "Connected to Autonomous CyberSec AI Agent System",
             "mode": "chat",
+            "queue": queue_state,
             "commands": {
                 "/chat": "Switch to chat mode",
                 "/queue list": "List command queue",
                 "/queue add": "Add command to queue",
                 "/queue rm <index>": "Remove command from queue",
-                "/queue edit <index>": "Edit command in queue"
+                "/queue clear": "Clear all pending commands"
             }
         }, websocket)
         
@@ -156,9 +184,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 await handle_chat(message.get("content", ""), websocket)
             elif message.get("type") == "get_updates":
                 agents = await agent_mgr.get_all_agents()
+                queue_state = await shared_queue.get_queue_state()
                 await manager.send_personal({
                     "type": "agent_update",
-                    "agents": agents
+                    "agents": agents,
+                    "queue": queue_state
+                }, websocket)
+            elif message.get("type") == "get_queue":
+                queue_state = await shared_queue.get_queue_state()
+                await manager.send_personal({
+                    "type": "queue_update",
+                    "queue": queue_state
                 }, websocket)
                 
     except WebSocketDisconnect:
@@ -170,6 +206,7 @@ async def websocket_endpoint(websocket: WebSocket):
 async def handle_command(content: str, websocket: WebSocket):
     """Handle special commands like /chat, /queue"""
     content = content.strip()
+    shared_queue = get_shared_queue()
     
     if content == "/chat":
         manager.chat_mode[websocket] = "chat"
@@ -183,24 +220,38 @@ async def handle_command(content: str, websocket: WebSocket):
         parts = content.split(maxsplit=2)
         
         if len(parts) == 1 or parts[1] == "list":
-            # List queue
-            queue_list = await queue_manager.list_queue()
+            queue_state = await shared_queue.get_queue_state()
+            instructions = await shared_queue.get_all_instructions()
             await manager.send_personal({
                 "type": "queue_list",
-                "queue": queue_list,
-                "total": len(queue_list)
+                "queue": [{"index": i+1, "command": inst.get("command", "")} for i, inst in enumerate(instructions)],
+                "state": queue_state,
+                "total": len(instructions)
             }, websocket)
             
         elif parts[1] == "add" and len(parts) == 3:
-            # Add to queue
             try:
-                commands = json.loads(parts[2])
-                await queue_manager.add_to_queue(commands)
-                await manager.send_personal({
-                    "type": "queue_add",
-                    "message": "Commands added to queue",
-                    "commands": commands
-                }, websocket)
+                data = json.loads(parts[2])
+                if isinstance(data, dict):
+                    commands = [v for k, v in sorted(data.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 999) if isinstance(v, str)]
+                    added = await shared_queue.add_instructions(commands)
+                    queue_state = await shared_queue.get_queue_state()
+                    await manager.send_personal({
+                        "type": "queue_add",
+                        "message": f"Added {added} commands to queue",
+                        "added": added,
+                        "queue": queue_state
+                    }, websocket)
+                    await manager.broadcast({
+                        "type": "queue_update",
+                        "queue": queue_state,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                else:
+                    await manager.send_personal({
+                        "type": "error",
+                        "message": "Invalid format. Use: {\"1\": \"RUN cmd\", \"2\": \"RUN cmd2\"}"
+                    }, websocket)
             except json.JSONDecodeError:
                 await manager.send_personal({
                     "type": "error",
@@ -208,43 +259,80 @@ async def handle_command(content: str, websocket: WebSocket):
                 }, websocket)
                 
         elif parts[1] == "rm" and len(parts) == 3:
-            # Remove from queue
             try:
-                index = int(parts[2]) - 1  # Convert to 0-based
-                removed = await queue_manager.remove_from_queue(index)
-                await manager.send_personal({
-                    "type": "queue_remove",
-                    "message": f"Command removed from queue",
-                    "removed": removed
-                }, websocket)
+                instruction_id = int(parts[2])
+                removed = await shared_queue.remove_instruction(instruction_id)
+                queue_state = await shared_queue.get_queue_state()
+                if removed:
+                    await manager.send_personal({
+                        "type": "queue_remove",
+                        "message": f"Command #{instruction_id} removed from queue",
+                        "queue": queue_state
+                    }, websocket)
+                    await manager.broadcast({
+                        "type": "queue_update",
+                        "queue": queue_state,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                else:
+                    await manager.send_personal({
+                        "type": "error",
+                        "message": f"Command #{instruction_id} not found"
+                    }, websocket)
             except ValueError:
                 await manager.send_personal({
                     "type": "error",
-                    "message": "Invalid index"
+                    "message": "Invalid instruction ID"
                 }, websocket)
+        
+        elif parts[1] == "clear":
+            await shared_queue.clear_queue()
+            queue_state = await shared_queue.get_queue_state()
+            await manager.send_personal({
+                "type": "queue_clear",
+                "message": "Queue cleared",
+                "queue": queue_state
+            }, websocket)
+            await manager.broadcast({
+                "type": "queue_update",
+                "queue": queue_state,
+                "timestamp": datetime.now().isoformat()
+            })
                 
         elif parts[1] == "edit" and len(parts) == 3:
-            # Edit queue item
             try:
                 subparts = parts[2].split(maxsplit=1)
-                index = int(subparts[0]) - 1  # Convert to 0-based
-                commands = json.loads(subparts[1])
-                await queue_manager.edit_queue(index, commands)
-                await manager.send_personal({
-                    "type": "queue_edit",
-                    "message": f"Command edited in queue",
-                    "index": index + 1,
-                    "commands": commands
-                }, websocket)
-            except (ValueError, json.JSONDecodeError):
+                instruction_id = int(subparts[0])
+                new_command = subparts[1].strip()
+                if new_command.startswith('"') and new_command.endswith('"'):
+                    new_command = new_command[1:-1]
+                edited = await shared_queue.edit_instruction(instruction_id, new_command)
+                queue_state = await shared_queue.get_queue_state()
+                if edited:
+                    await manager.send_personal({
+                        "type": "queue_edit",
+                        "message": f"Command #{instruction_id} updated",
+                        "queue": queue_state
+                    }, websocket)
+                    await manager.broadcast({
+                        "type": "queue_update",
+                        "queue": queue_state,
+                        "timestamp": datetime.now().isoformat()
+                    })
+                else:
+                    await manager.send_personal({
+                        "type": "error",
+                        "message": f"Command #{instruction_id} not found or already executing"
+                    }, websocket)
+            except (ValueError, IndexError):
                 await manager.send_personal({
                     "type": "error",
-                    "message": "Invalid format. Use: /queue edit <index> {json}"
+                    "message": "Invalid format. Use: /queue edit <id> <new_command>"
                 }, websocket)
         else:
             await manager.send_personal({
                 "type": "error",
-                "message": "Unknown queue command"
+                "message": "Unknown queue command. Try: list, add, rm, edit, clear"
             }, websocket)
     else:
         await manager.send_personal({
@@ -255,7 +343,6 @@ async def handle_command(content: str, websocket: WebSocket):
 async def handle_chat(content: str, websocket: WebSocket):
     """Handle chat messages with AI model"""
     try:
-        # Send to AI model for processing
         from models.router import ModelRouter
         model_router = ModelRouter()
         
@@ -270,4 +357,3 @@ async def handle_chat(content: str, websocket: WebSocket):
             "type": "error",
             "message": f"Chat error: {str(e)}"
         }, websocket)
-
