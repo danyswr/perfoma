@@ -232,3 +232,17 @@
 .animate-ping-slow {
   animation: ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
+
+/* Text scroll animation for long text on hover */
+@keyframes scroll-text {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+.group:hover .animate-scroll-text {
+  animation: scroll-text 8s linear infinite;
+}

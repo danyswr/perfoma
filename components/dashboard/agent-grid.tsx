@@ -264,7 +264,11 @@ function AgentCard({ agent, compact, onPause, onResume, onRemove, onViewDetails 
 
       <div className="mb-1.5 p-1 rounded bg-black/80 font-mono text-[9px] text-green-400 border border-border/50 flex items-center gap-1 overflow-hidden min-w-0">
         <Terminal className="w-2.5 h-2.5 text-muted-foreground shrink-0" />
-        <span className="truncate opacity-90 line-clamp-1 min-w-0">{agent.lastCommand}</span>
+        <span className="opacity-90 line-clamp-1 min-w-0 truncate group-hover:truncate-none group-hover:whitespace-nowrap animate-scroll-text" style={{
+          display: "inline-block"
+        }}>
+          {agent.lastCommand}
+        </span>
       </div>
 
       <div className="grid grid-cols-3 gap-1 mb-1.5">
