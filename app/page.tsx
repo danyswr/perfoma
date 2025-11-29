@@ -1135,7 +1135,7 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
   }
 
   return (
-    <div className={`h-full border-r border-border flex flex-col transition-all duration-300 ${open ? "w-72 min-w-[288px] max-w-[320px]" : "w-12"}`}>
+    <div className={`h-full border-r border-border flex flex-col transition-all duration-300 ${open ? "w-80 min-w-[320px] max-w-[380px]" : "w-12"}`}>
       <div className="p-2 border-b border-border flex items-center justify-between shrink-0">
         <Button 
           variant="ghost" 

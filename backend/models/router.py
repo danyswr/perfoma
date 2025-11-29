@@ -527,9 +527,8 @@ class ModelRouter:
         user_message: str,
         context: Optional[List[Dict]] = None
     ) -> str:
-        """Generate using local Ollama API"""
-        
-        ollama_host = settings.OLLAMA_HOST or "http://localhost:11434"
+        """Generate using local Ollama command line (ollama run)"""
+        from .ollama_local import ollama_client
         
         api_model = model_name
         if model_name in self.AVAILABLE_MODELS:
@@ -537,59 +536,32 @@ class ModelRouter:
         elif model_name.startswith("ollama/"):
             api_model = model_name[7:]
         
-        messages = [{"role": "system", "content": system_prompt}]
-        
-        if context:
-            messages.extend(context)
-        
-        messages.append({"role": "user", "content": user_message})
-        
         try:
             self.request_count += 1
-            print(f"[Ollama] Request #{self.request_count} to model: {api_model}")
+            print(f"[Ollama] Request #{self.request_count} to model: {api_model} (using local command)")
             
-            response = await self.client.post(
-                f"{ollama_host}/api/chat",
-                headers={"Content-Type": "application/json"},
-                json={
-                    "model": api_model,
-                    "messages": messages,
-                    "stream": False,
-                    "options": {
-                        "temperature": 0.7,
-                        "num_predict": 2048
-                    }
-                },
-                timeout=180.0
+            response = await ollama_client.generate(
+                model_name=api_model,
+                system_prompt=system_prompt,
+                user_message=user_message,
+                context=context
             )
             
-            if response.status_code != 200:
-                self.error_count += 1
-                error_text = response.text[:200] if response.text else "Unknown error"
-                self.last_error = f"Ollama API {response.status_code}: {error_text}"
-                raise Exception(self.last_error)
-            
-            data = response.json()
-            content = data.get("message", {}).get("content", "")
-            
-            if not content:
+            if not response:
                 raise Exception("Empty response from Ollama")
             
-            return content.strip()
+            return response.strip()
             
-        except httpx.TimeoutException:
-            self.error_count += 1
-            self.last_error = "Ollama API timeout (180s)"
-            raise Exception(self.last_error)
-        except httpx.ConnectError:
-            self.error_count += 1
-            self.last_error = f"Cannot connect to Ollama at {ollama_host}. Make sure Ollama is running."
-            raise Exception(self.last_error)
         except Exception as e:
-            if "Ollama" not in str(e):
-                self.error_count += 1
-                self.last_error = f"Ollama error: {str(e)[:100]}"
-            raise
+            self.error_count += 1
+            error_msg = str(e)
+            if "not installed" in error_msg.lower():
+                self.last_error = "Ollama is not installed. Install from https://ollama.ai"
+            elif "timeout" in error_msg.lower():
+                self.last_error = "Ollama timeout. Consider using a smaller model."
+            else:
+                self.last_error = f"Ollama error: {error_msg[:100]}"
+            raise Exception(self.last_error)
 
     async def _generate_custom(
         self,
@@ -755,6 +727,25 @@ class ModelRouter:
                 return {
                     "status": "error",
                     "message": f"Connection error: {str(e)}",
+                    "provider": provider,
+                    "model": model
+                }
+        
+        elif provider_lower == "ollama":
+            from .ollama_local import ollama_client
+            try:
+                result = await ollama_client.test_connection(model)
+                return {
+                    "status": result.get("status", "error"),
+                    "message": result.get("message", "Unknown"),
+                    "provider": provider,
+                    "model": model,
+                    "available_models": result.get("available_models", [])
+                }
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "message": f"Ollama error: {str(e)}",
                     "provider": provider,
                     "model": model
                 }

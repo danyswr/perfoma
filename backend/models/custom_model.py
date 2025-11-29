@@ -1,5 +1,5 @@
 # Custom model implementation
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import httpx
 from server.config import settings
 
