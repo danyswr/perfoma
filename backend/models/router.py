@@ -195,7 +195,7 @@ class ModelRouter:
                 },
                 json={
                     "model": api_model,
-                    "max_tokens": 4096,
+                    "max_tokens": 2048,
                     "system": system_prompt,
                     "messages": messages
                 },
@@ -272,7 +272,7 @@ class ModelRouter:
                     "model": api_model,
                     "messages": messages,
                     "temperature": 0.7,
-                    "max_tokens": 4096
+                    "max_tokens": 2048
                 },
                 timeout=120.0
             )
@@ -415,7 +415,7 @@ class ModelRouter:
                 "model": model_name,
                 "messages": messages,
                 "temperature": 0.7,
-                "max_tokens": 4096
+                "max_tokens": 2048
             }
             
             print(f"[OpenRouter] Request #{self.request_count} to model: {model_name}")
@@ -436,22 +436,29 @@ class ModelRouter:
                 except Exception:
                     error_message = response.text[:200]
                 
-                # Only raise for actual error statuses, not partial responses
+                print(f"[OpenRouter] Error {response.status_code}: {error_message}")
+                
+                # Only raise for actual critical error statuses
                 if response.status_code >= 500:
-                    error_msg = f"OpenRouter server error: {response.status_code}"
+                    error_msg = f"OpenRouter server error {response.status_code}"
                     self.last_error = error_msg
                     raise Exception(error_msg)
                 elif response.status_code == 429:
-                    error_msg = f"Rate limited - retrying in {2 ** (self.error_count % 5)} seconds"
+                    error_msg = f"Rate limited - wait before retrying"
                     self.last_error = error_msg
                     raise Exception(error_msg)
                 elif response.status_code == 401:
-                    error_msg = "Invalid API key - check OPENROUTER_API_KEY"
+                    error_msg = f"Invalid OpenRouter API key"
+                    self.last_error = error_msg
+                    raise Exception(error_msg)
+                elif response.status_code == 402:
+                    # Payment/credits issue - show the actual error from OpenRouter
+                    error_msg = f"OpenRouter: {error_message}"
                     self.last_error = error_msg
                     raise Exception(error_msg)
                 else:
-                    # For other non-200 responses, just raise a generic error
-                    error_msg = f"API error {response.status_code}: {error_message}"
+                    # For other errors, show the actual API response
+                    error_msg = f"API {response.status_code}: {error_message}"
                     self.last_error = error_msg
                     raise Exception(error_msg)
             
