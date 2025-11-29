@@ -4,6 +4,22 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-29**: UI Improvements & Ollama Support ✅
+  - ✅ ADDED: Ollama local model support in AI provider list
+    - New _generate_ollama() function in models/router.py
+    - OLLAMA_HOST environment variable for custom Ollama endpoint
+    - Fixed provider detection order - Ollama checked before OpenRouter fallback
+  - ✅ FIXED: Double input bug in queue chat sidebar
+    - Chat tab now has its own input, queue tab has its own "Add Command" input
+    - Separated sidebarTab === "chat" condition for form visibility
+  - ✅ ADDED: Findings popup dialog with detailed report view
+    - Click on any finding to see full details in popup
+    - Shows: severity, CVSS score, CVE, title, description, technical details, remediation
+    - Color-coded severity indicators (critical=red, high=orange, medium=yellow, etc.)
+  - ✅ CONFIRMED: Timer correctly stops when agent is not running
+    - useEffect only runs interval when agent.status === "running"
+  - STATUS: UI polished with better UX for findings and chat interactions
+
 - **2024-11-29**: Shared Instruction Queue System & Real-Time Updates ✅
   - ✅ ADDED: Global shared instruction queue (backend/agent/shared_queue.py)
     - All agents compete for next available instruction from single queue
