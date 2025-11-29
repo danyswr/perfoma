@@ -137,8 +137,8 @@ class InterAgentCommunication:
                 return True
     
     async def get_messages(self, agent_id: str, 
-                          message_types: List[MessageType] = None,
-                          min_priority: Priority = None,
+                          message_types: Optional[List[MessageType]] = None,
+                          min_priority: Optional[Priority] = None,
                           limit: int = 50,
                           unread_only: bool = False) -> List[AgentMessage]:
         """Get pending messages for an agent
@@ -178,7 +178,7 @@ class InterAgentCommunication:
                         msg.ack_received = True
                         break
     
-    async def clear_messages(self, agent_id: str, message_ids: List[str] = None):
+    async def clear_messages(self, agent_id: str, message_ids: Optional[List[str]] = None):
         """Clear messages from agent's queue"""
         async with self._lock:
             if agent_id in self._message_queue:
@@ -228,7 +228,7 @@ class InterAgentCommunication:
         
         return True
     
-    async def get_discoveries(self, discovery_type: str = None) -> List[Dict]:
+    async def get_discoveries(self, discovery_type: Optional[str] = None) -> List[Dict]:
         """Get shared discoveries"""
         async with self._lock:
             discoveries = list(self._shared_discoveries.values())
@@ -256,7 +256,7 @@ class InterAgentCommunication:
         await self.send_message(message)
     
     async def request_help(self, agent_id: str, task_type: str, 
-                          task_description: str, requirements: Dict = None) -> str:
+                          task_description: str, requirements: Optional[Dict] = None) -> str:
         """Request help from other agents"""
         message = AgentMessage(
             id="",
@@ -344,7 +344,7 @@ class InterAgentCommunication:
             return (task_identifier not in self._completed_tasks and 
                     task_identifier not in self._in_progress_tasks)
     
-    async def get_available_agents(self, specialization: str = None) -> List[AgentCapability]:
+    async def get_available_agents(self, specialization: Optional[str] = None) -> List[AgentCapability]:
         """Get list of available agents, optionally filtered by specialization"""
         async with self._lock:
             agents = list(self._agent_capabilities.values())
@@ -360,7 +360,7 @@ class InterAgentCommunication:
             return agents
     
     async def find_best_agent_for_task(self, task_type: str, 
-                                       exclude_agent: str = None) -> Optional[str]:
+                                       exclude_agent: Optional[str] = None) -> Optional[str]:
         """Find the best available agent for a specific task type"""
         specialization_map = {
             "port_scan": ["network_recon", "scanning"],
@@ -387,7 +387,7 @@ class InterAgentCommunication:
         return None
     
     async def broadcast_alert(self, agent_id: str, alert_type: str, 
-                             message: str, data: Dict = None):
+                             message: str, data: Optional[Dict] = None):
         """Broadcast an alert to all agents"""
         msg = AgentMessage(
             id="",
@@ -450,7 +450,7 @@ class KnowledgeBase:
     """
     
     def __init__(self):
-        self._knowledge: Dict[str, Dict[str, Any]] = {
+        self._knowledge: Dict[str, Any] = {
             "ports": {},
             "services": {},
             "technologies": {},
@@ -463,8 +463,8 @@ class KnowledgeBase:
         }
         self._lock = asyncio.Lock()
     
-    async def add_port(self, target: str, port: int, service: str = None, 
-                      version: str = None, agent_id: str = None):
+    async def add_port(self, target: str, port: int, service: Optional[str] = None, 
+                      version: Optional[str] = None, agent_id: Optional[str] = None):
         """Add discovered port information"""
         async with self._lock:
             key = f"{target}:{port}"
@@ -481,7 +481,7 @@ class KnowledgeBase:
             return False
     
     async def add_technology(self, target: str, tech_name: str, 
-                            version: str = None, agent_id: str = None):
+                            version: Optional[str] = None, agent_id: Optional[str] = None):
         """Add discovered technology"""
         async with self._lock:
             key = f"{target}:{tech_name}"
@@ -498,7 +498,7 @@ class KnowledgeBase:
     
     async def add_vulnerability(self, target: str, vuln_type: str, 
                                details: str, severity: str = "Medium",
-                               cve: str = None, agent_id: str = None):
+                               cve: Optional[str] = None, agent_id: Optional[str] = None):
         """Add discovered vulnerability"""
         async with self._lock:
             key = f"{target}:{vuln_type}:{hash(details) % 10000}"
@@ -517,7 +517,7 @@ class KnowledgeBase:
             return False
     
     async def add_subdomain(self, parent_domain: str, subdomain: str, 
-                           ip: str = None, agent_id: str = None):
+                           ip: Optional[str] = None, agent_id: Optional[str] = None):
         """Add discovered subdomain"""
         async with self._lock:
             if subdomain not in self._knowledge["subdomains"]:
@@ -532,7 +532,7 @@ class KnowledgeBase:
             return False
     
     async def add_directory(self, target: str, path: str, 
-                           status_code: int = None, agent_id: str = None):
+                           status_code: Optional[int] = None, agent_id: Optional[str] = None):
         """Add discovered directory/path"""
         async with self._lock:
             key = f"{target}{path}"
@@ -547,7 +547,7 @@ class KnowledgeBase:
                 return True
             return False
     
-    async def get_knowledge(self, category: str = None) -> Dict:
+    async def get_knowledge(self, category: Optional[str] = None) -> Dict:
         """Get knowledge, optionally filtered by category"""
         async with self._lock:
             if category:
@@ -587,8 +587,8 @@ class KnowledgeBase:
             
             return summary
     
-    async def check_if_scanned(self, target: str, port: int = None, 
-                              scan_type: str = None) -> bool:
+    async def check_if_scanned(self, target: str, port: Optional[int] = None, 
+                              scan_type: Optional[str] = None) -> bool:
         """Check if a target/port has already been scanned"""
         async with self._lock:
             if port:

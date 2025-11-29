@@ -4,6 +4,7 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from agent.worker import AgentWorker
 from agent.queue import QueueManager
+from agent.collaboration import InterAgentCommunication, AgentCapability
 from monitor.log import Logger
 from monitor.resource import ResourceMonitor
 import json
@@ -16,6 +17,7 @@ class AgentManager:
         self.queue_manager = QueueManager()
         self.logger = Logger()
         self.resource_monitor = ResourceMonitor()
+        self.collaboration_bus = InterAgentCommunication()
         self.shared_knowledge: Dict[str, Any] = {
             "findings": [],
             "messages": [],
@@ -74,6 +76,18 @@ class AgentManager:
             
             self.agents[agent_id] = agent
             agent_ids.append(agent_id)
+            
+            # Register agent with collaboration system
+            cap = AgentCapability(
+                agent_id=agent_id,
+                specializations=["general"],
+                current_load=0.0,
+                status="idle",
+                target=target,
+                tools_available=[],
+                findings_count=0
+            )
+            await self.collaboration_bus.register_agent(agent_id, cap)
             
             await self.logger.log_event(
                 f"Agent {agent_id} created",
