@@ -4,6 +4,22 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-29**: Real-Time Findings & UI Improvements ✅
+  - ✅ ADDED: History card truncation with click-to-expand details dialog
+    - Cards show truncated text with "..." and "Click to view details" hint
+    - Full content viewable in modal dialog with copy button
+  - ✅ ADDED: Real-time findings WebSocket broadcast
+    - New `finding_update` event type broadcasts immediately when findings are discovered
+    - Frontend updates findings panel instantly without waiting for polling
+    - `_broadcast_finding()` method in worker.py sends formatted finding data
+  - ✅ ADDED: Stop Mission summary generation
+    - Stopping mission now calls backend API to terminate agents
+    - Returns comprehensive summary: total findings, severity breakdown, duration, agents used
+    - Frontend displays mission summary after stop
+  - ✅ FIXED: Favicon now shows performa-logo.png in browser tab
+  - ✅ VERIFIED: SQLite storage for agent activity memory already implemented
+  - STATUS: Dashboard now provides real-time updates and better user experience
+
 - **2024-11-29**: Comprehensive Memory Optimization ✅
   - ✅ OPTIMIZED: Worker.py agent memory with strict limits
     - context_history: 6 items max (auto-trimmed)

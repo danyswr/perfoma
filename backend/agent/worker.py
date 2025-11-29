@@ -1070,17 +1070,21 @@ When done, respond with:
     
     async def _save_findings(self, findings: List[str]):
         """Save findings to log and shared knowledge"""
+        import uuid
         
         for finding in findings:
             severity = self._classify_severity(finding)
+            finding_id = str(uuid.uuid4())[:8]
+            timestamp = datetime.now().isoformat()
             
             finding_data = {
                 "agent_id": self.agent_id,
                 "agent_number": self.agent_number,
                 "content": finding,
                 "severity": severity,
-                "timestamp": datetime.now().isoformat(),
-                "target": self.target
+                "timestamp": timestamp,
+                "target": self.target,
+                "id": finding_id
             }
             
             self.shared_knowledge["findings"].append(finding_data)
@@ -1088,6 +1092,7 @@ When done, respond with:
             await self.logger.write_finding(self.agent_id, finding, target=self.target)
             
             await self._broadcast_event("found", finding, severity.lower())
+            await self._broadcast_finding(finding_id, finding, severity, timestamp)
             
             await self.logger.log_event(
                 f"Agent {self.agent_id} finding: {finding[:100]}...",
@@ -1238,13 +1243,18 @@ When done, respond with:
     
     async def _save_single_finding(self, content: str, severity: str = "Info"):
         """Save a single finding from JSON response"""
+        import uuid
+        finding_id = str(uuid.uuid4())[:8]
+        timestamp = datetime.now().isoformat()
+        
         finding_data = {
             "agent_id": self.agent_id,
             "agent_number": self.agent_number,
             "content": content,
             "severity": severity,
-            "timestamp": datetime.now().isoformat(),
-            "target": self.target
+            "timestamp": timestamp,
+            "target": self.target,
+            "id": finding_id
         }
         
         self.shared_knowledge["findings"].append(finding_data)
@@ -1257,6 +1267,8 @@ When done, respond with:
         await self.logger.write_finding(self.agent_id, f"[{severity}] {content}", target=self.target)
         
         await self._broadcast_event("found", content, severity.lower())
+        
+        await self._broadcast_finding(finding_id, content, severity, timestamp)
     
     async def _broadcast_event(self, event_type: str, content: str, severity: str = None):
         """Broadcast real-time event to WebSocket clients"""
@@ -1272,6 +1284,24 @@ When done, respond with:
                 "severity": severity,
                 "timestamp": datetime.now().isoformat(),
                 "target": self.target
+            })
+        except Exception:
+            pass
+    
+    async def _broadcast_finding(self, finding_id: str, content: str, severity: str, timestamp: str):
+        """Broadcast finding update to WebSocket clients for real-time display"""
+        try:
+            from server.ws import manager
+            
+            await manager.broadcast_finding({
+                "id": finding_id,
+                "title": content[:100] + ("..." if len(content) > 100 else ""),
+                "description": content,
+                "severity": severity.lower(),
+                "agent_id": self.agent_id,
+                "timestamp": timestamp,
+                "cve": None,
+                "cvss": None
             })
         except Exception:
             pass
