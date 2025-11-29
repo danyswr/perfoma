@@ -200,8 +200,8 @@ export default function Dashboard() {
     <div className="h-screen w-screen overflow-hidden bg-background flex flex-col">
       <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-primary" />
+          <div className="w-10 h-10 rounded-lg overflow-hidden">
+            <img src="/performa-logo.png" alt="Performa" className="w-full h-full object-cover" />
           </div>
           <div>
             <h1 className="font-bold text-lg">Performa</h1>
@@ -434,23 +434,32 @@ export default function Dashboard() {
                             </span>
                           </SelectItem>
                         ))}
-                        <SelectItem value="custom">Custom Model</SelectItem>
                       </SelectContent>
                     </Select>
-                    {config.modelName === "custom" && (
-                      <Input
-                        placeholder="openai/gpt-4-turbo-preview"
-                        value={customModelId}
-                        onChange={(e) => setCustomModelId(e.target.value)}
-                        className="h-9 mt-2"
-                      />
+                    {(config.modelName === "custom" || config.modelName === "ollama") && (
+                      <div className="space-y-2 mt-2 p-3 rounded-lg bg-muted/30 border border-border">
+                        <Label className="text-xs font-medium">
+                          {config.modelName === "ollama" ? "Ollama Model Name" : "Custom Model ID"}
+                        </Label>
+                        <Input
+                          placeholder={config.modelName === "ollama" ? "llama3.2, codellama, mistral..." : "openai/gpt-4-turbo-preview"}
+                          value={customModelId}
+                          onChange={(e) => setCustomModelId(e.target.value)}
+                          className="h-9"
+                        />
+                        {config.modelName === "ollama" && (
+                          <p className="text-xs text-muted-foreground">
+                            Enter your locally installed Ollama model name
+                          </p>
+                        )}
+                      </div>
                     )}
                     <div className="flex gap-2">
                       <Button 
                         variant="outline" 
                         size="sm" 
                         onClick={handleTestApi} 
-                        disabled={testingApi || (config.modelName === "custom" && !customModelId.trim())} 
+                        disabled={testingApi || ((config.modelName === "custom" || config.modelName === "ollama") && !customModelId.trim())} 
                         className="flex-1 h-8"
                       >
                         {testingApi ? "Testing..." : "Test API"}
@@ -963,6 +972,8 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
 }
 
 function FindingCard({ finding }: { finding: Finding }) {
+  const [showDetails, setShowDetails] = useState(false)
+  
   const colors = {
     critical: "border-l-red-500 bg-red-500/5",
     high: "border-l-orange-500 bg-orange-500/5",
@@ -980,29 +991,90 @@ function FindingCard({ finding }: { finding: Finding }) {
   }
 
   return (
-    <div className={`p-3 rounded-lg border-l-2 ${colors[finding.severity]} hover:bg-muted/50 transition-colors cursor-pointer border border-transparent hover:border-border/50`}>
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-1.5">
-          <Badge variant="outline" className={`text-[10px] capitalize ${badgeColors[finding.severity]}`}>
-            {finding.severity}
-          </Badge>
-          {finding.cvss && (
-            <span className="text-[10px] font-mono text-muted-foreground">
-              CVSS: {finding.cvss.toFixed(1)}
-            </span>
+    <>
+      <div 
+        className={`p-3 rounded-lg border-l-2 ${colors[finding.severity]} hover:bg-muted/50 transition-colors cursor-pointer border border-transparent hover:border-border/50`}
+        onClick={() => setShowDetails(true)}
+      >
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-1.5">
+            <Badge variant="outline" className={`text-[10px] capitalize ${badgeColors[finding.severity]}`}>
+              {finding.severity}
+            </Badge>
+            {finding.cvss && (
+              <span className="text-[10px] font-mono text-muted-foreground">
+                CVSS: {finding.cvss.toFixed(1)}
+              </span>
+            )}
+          </div>
+          {finding.cve && (
+            <Badge variant="secondary" className="text-[9px] font-mono h-4 px-1.5">{finding.cve}</Badge>
           )}
         </div>
-        {finding.cve && (
-          <Badge variant="secondary" className="text-[9px] font-mono h-4 px-1.5">{finding.cve}</Badge>
-        )}
+        <p className="text-xs font-medium leading-tight mb-1">{finding.title}</p>
+        <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">{finding.description}</p>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
+          <span className="text-[9px] text-muted-foreground">Agent {finding.agentId}</span>
+          <span className="text-[9px] text-muted-foreground">{finding.timestamp}</span>
+        </div>
       </div>
-      <p className="text-xs font-medium leading-tight mb-1">{finding.title}</p>
-      <p className="text-[10px] text-muted-foreground line-clamp-2 leading-relaxed">{finding.description}</p>
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30">
-        <span className="text-[9px] text-muted-foreground">Agent {finding.agentId}</span>
-        <span className="text-[9px] text-muted-foreground">{finding.timestamp}</span>
-      </div>
-    </div>
+      
+      <Dialog open={showDetails} onOpenChange={setShowDetails}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className={`w-5 h-5 ${
+                finding.severity === 'critical' ? 'text-red-500' :
+                finding.severity === 'high' ? 'text-orange-500' :
+                finding.severity === 'medium' ? 'text-yellow-500' :
+                finding.severity === 'low' ? 'text-blue-500' : 'text-gray-500'
+              }`} />
+              Security Finding Report
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge className={badgeColors[finding.severity]}>
+                {finding.severity.toUpperCase()}
+              </Badge>
+              {finding.cvss && (
+                <Badge variant="outline" className="font-mono">
+                  CVSS: {finding.cvss.toFixed(1)}
+                </Badge>
+              )}
+              {finding.cve && (
+                <Badge variant="secondary" className="font-mono">{finding.cve}</Badge>
+              )}
+            </div>
+            
+            <div>
+              <h4 className="font-semibold text-lg mb-1">{finding.title}</h4>
+              <p className="text-sm text-muted-foreground">{finding.description}</p>
+            </div>
+            
+            {finding.details && (
+              <div className="p-3 rounded-lg bg-muted/50 border">
+                <h5 className="text-xs font-semibold mb-2 text-muted-foreground uppercase">Technical Details</h5>
+                <p className="text-sm font-mono whitespace-pre-wrap">{finding.details}</p>
+              </div>
+            )}
+            
+            {finding.remediation && (
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <h5 className="text-xs font-semibold mb-2 text-primary uppercase">Remediation</h5>
+                <p className="text-sm">{finding.remediation}</p>
+              </div>
+            )}
+            
+            <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
+              <span>Discovered by Agent {finding.agentId}</span>
+              <span>{finding.timestamp}</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -1253,13 +1325,13 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
           </ScrollArea>
           )}
 
-          {sidebarTab !== "history" && (
+          {sidebarTab === "chat" && (
           <form onSubmit={handleSubmit} className="p-3 border-t border-border shrink-0">
             <div className="flex gap-2">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={mode === "chat" ? "Type a message..." : "/queue command..."}
+                placeholder="Type a message..."
                 className="flex-1 h-9"
               />
               <Button type="submit" size="icon" disabled={!connected} className="h-9 w-9">

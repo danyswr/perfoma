@@ -67,6 +67,12 @@ class ModelRouter:
             "api_model": "mistralai/mistral-large",
             "context": 128000
         },
+        "ollama": {
+            "name": "Ollama (Local)",
+            "provider": "ollama",
+            "api_model": "llama3.2",
+            "context": 8192
+        },
         "custom": {
             "name": "Custom Model",
             "provider": "custom",
@@ -97,8 +103,14 @@ class ModelRouter:
             # Otherwise use OpenRouter for any model
             elif settings.OPENROUTER_API_KEY:
                 return "openrouter"
+            elif preferred_provider == "ollama":
+                return "ollama"
             elif preferred_provider == "custom":
                 return "custom"
+        
+        # Check for Ollama models
+        if model_name.startswith("ollama/") or model_name == "ollama":
+            return "ollama"
         
         # For unknown models, try by prefix
         if (model_name.startswith("anthropic/") or model_name.startswith("claude")) and settings.ANTHROPIC_API_KEY:
@@ -140,6 +152,8 @@ class ModelRouter:
             return await self._generate_openai(model_name, system_prompt, user_message, context)
         elif provider == "google":
             return await self._generate_google(model_name, system_prompt, user_message, context)
+        elif provider == "ollama":
+            return await self._generate_ollama(model_name, system_prompt, user_message, context)
         elif provider == "custom":
             return await self._generate_custom(system_prompt, user_message, context)
         else:
@@ -502,6 +516,77 @@ class ModelRouter:
             self.last_error = error_msg
             raise
     
+    async def _generate_ollama(
+        self,
+        model_name: str,
+        system_prompt: str,
+        user_message: str,
+        context: Optional[List[Dict]] = None
+    ) -> str:
+        """Generate using local Ollama API"""
+        
+        ollama_host = settings.OLLAMA_HOST or "http://localhost:11434"
+        
+        api_model = model_name
+        if model_name in self.AVAILABLE_MODELS:
+            api_model = self.AVAILABLE_MODELS[model_name].get("api_model", "llama3.2")
+        elif model_name.startswith("ollama/"):
+            api_model = model_name[7:]
+        
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        if context:
+            messages.extend(context)
+        
+        messages.append({"role": "user", "content": user_message})
+        
+        try:
+            self.request_count += 1
+            print(f"[Ollama] Request #{self.request_count} to model: {api_model}")
+            
+            response = await self.client.post(
+                f"{ollama_host}/api/chat",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "model": api_model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.7,
+                        "num_predict": 2048
+                    }
+                },
+                timeout=180.0
+            )
+            
+            if response.status_code != 200:
+                self.error_count += 1
+                error_text = response.text[:200] if response.text else "Unknown error"
+                self.last_error = f"Ollama API {response.status_code}: {error_text}"
+                raise Exception(self.last_error)
+            
+            data = response.json()
+            content = data.get("message", {}).get("content", "")
+            
+            if not content:
+                raise Exception("Empty response from Ollama")
+            
+            return content.strip()
+            
+        except httpx.TimeoutException:
+            self.error_count += 1
+            self.last_error = "Ollama API timeout (180s)"
+            raise Exception(self.last_error)
+        except httpx.ConnectError:
+            self.error_count += 1
+            self.last_error = f"Cannot connect to Ollama at {ollama_host}. Make sure Ollama is running."
+            raise Exception(self.last_error)
+        except Exception as e:
+            if "Ollama" not in str(e):
+                self.error_count += 1
+                self.last_error = f"Ollama error: {str(e)[:100]}"
+            raise
+
     async def _generate_custom(
         self,
         system_prompt: str,

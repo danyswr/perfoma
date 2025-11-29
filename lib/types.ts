@@ -126,6 +126,7 @@ export const OPENROUTER_MODELS = [
   { id: "openai/gpt-4o", name: "GPT-4o", provider: "OpenAI" },
   { id: "google/gemini-pro-1.5", name: "Gemini Pro 1.5", provider: "Google" },
   { id: "meta-llama/llama-3.1-405b-instruct", name: "Llama 3.1 405B", provider: "Meta" },
+  { id: "ollama", name: "Ollama (Local)", provider: "Ollama" },
   { id: "custom", name: "Custom Model", provider: "OpenRouter" },
 ]
 

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "")
     CUSTOM_MODEL_API_KEY: str = os.getenv("CUSTOM_MODEL_API_KEY", "")
     CUSTOM_MODEL_ENDPOINT: str = os.getenv("CUSTOM_MODEL_ENDPOINT", "")
+    OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
     
     # Directory Configuration
     LOG_DIR: str = os.getenv("LOG_DIR", "./logs")
