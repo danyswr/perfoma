@@ -92,7 +92,8 @@ export function ModelInstructions() {
     }
   }
 
-  const truncateText = (text: string, maxLength: number = 80) => {
+  const truncateText = (text: string | undefined, maxLength: number = 80) => {
+    if (!text) return ""
     if (text.length <= maxLength) return text
     return text.substring(0, maxLength).trim() + "..."
   }
