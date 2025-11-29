@@ -151,7 +151,7 @@ class AgentMemory:
                 self._initialized = True
     
     async def register_agent(self, agent_id: str, agent_number: int, target: str, 
-                            category: str, model_name: str, metadata: Dict = None) -> bool:
+                            category: str, model_name: str, metadata: Optional[Dict] = None) -> bool:
         """Register a new agent in the memory system"""
         await self.initialize()
         
@@ -206,10 +206,10 @@ class AgentMemory:
                 LIMIT ?
             """, (agent_id, limit)) as cursor:
                 rows = await cursor.fetchall()
-                return [dict(row) for row in reversed(rows)]
+                return [dict(row) for row in reversed(list(rows))]
     
     async def add_knowledge(self, agent_id: str, knowledge_type: str, key: str, 
-                           value: Any, confidence: float = 1.0, source: str = None):
+                           value: Any, confidence: float = 1.0, source: Optional[str] = None):
         """Add knowledge to the shared knowledge base (allows multiple agent contributions)"""
         await self.initialize()
         
@@ -236,7 +236,7 @@ class AgentMemory:
                 """, (agent_id, knowledge_type, key, value_json, confidence, source))
             await db.commit()
     
-    async def get_knowledge(self, knowledge_type: str = None, key: str = None) -> List[Dict]:
+    async def get_knowledge(self, knowledge_type: Optional[str] = None, key: Optional[str] = None) -> List[Dict]:
         """Retrieve knowledge from the knowledge base"""
         await self.initialize()
         
@@ -621,6 +621,8 @@ class AgentMemoryManager:
     
     @property
     def memory(self) -> AgentMemory:
+        if self._memory is None:
+            self._memory = AgentMemory()
         return self._memory
     
     async def initialize(self):
