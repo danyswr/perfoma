@@ -3,6 +3,13 @@
 ## Overview
 Performa is an autonomous cybersecurity AI agent system designed for security assessments, real-time monitoring, and automated threat detection. It features a sophisticated Next.js frontend and a Python FastAPI backend, leveraging multi-agent AI capabilities to enhance cybersecurity operations. The project aims to provide a powerful, efficient, and user-friendly platform for managing complex security tasks.
 
+## Recent Updates (Nov 2025)
+- **Findings Explorer**: Real-time file browser showing findings organized by target with JSON/TXT/PDF viewer popup
+- **Resizable Sidebar**: Drag-to-resize sidebar with localStorage persistence
+- **Tool Request Feature**: New "Tools" tab in Mission Config for priority tool selection
+- **Enhanced Chat**: Improved WebSocket connection handling and error display
+- **Real-time Directory Watcher**: Backend monitors findings folder and broadcasts updates via WebSocket
+
 ## User Preferences
 - Clean, organized findings (no HTML clutter)
 - Separate folders for each target
