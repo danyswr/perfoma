@@ -93,6 +93,14 @@ class ModelRouter:
         if model_name in self.AVAILABLE_MODELS:
             preferred_provider = self.AVAILABLE_MODELS[model_name]["provider"]
             
+            # Check for Ollama first (local, no API key needed)
+            if preferred_provider == "ollama":
+                return "ollama"
+            
+            # Check for custom model
+            if preferred_provider == "custom":
+                return "custom"
+            
             # Try direct API if available
             if preferred_provider == "anthropic" and settings.ANTHROPIC_API_KEY:
                 return "anthropic"
@@ -103,12 +111,8 @@ class ModelRouter:
             # Otherwise use OpenRouter for any model
             elif settings.OPENROUTER_API_KEY:
                 return "openrouter"
-            elif preferred_provider == "ollama":
-                return "ollama"
-            elif preferred_provider == "custom":
-                return "custom"
         
-        # Check for Ollama models
+        # Check for Ollama models by prefix
         if model_name.startswith("ollama/") or model_name == "ollama":
             return "ollama"
         
