@@ -217,6 +217,28 @@ export const api = {
       return { error: "Cannot fetch history", data: { history: [], total: 0 } }
     }
   },
+
+  async stopMission() {
+    try {
+      const res = await fetch(`${API_BASE}/api/stop`, {
+        method: "POST",
+      })
+      return handleResponse<{ 
+        status: string
+        agents_stopped: number
+        total_agents: number
+        reports_generated_for: string[]
+        summary?: {
+          total_findings: number
+          severity_breakdown: Record<string, number>
+          duration: number
+          agents_used: number
+        }
+      }>(res)
+    } catch {
+      return { error: "Cannot stop mission" }
+    }
+  },
 }
 
 export interface AgentResponse {

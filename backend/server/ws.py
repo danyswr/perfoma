@@ -147,6 +147,17 @@ class ConnectionManager:
             except Exception as e:
                 print(f"Queue broadcast error: {e}")
             await asyncio.sleep(0.2)
+    
+    async def broadcast_finding(self, finding: dict):
+        """Broadcast a new finding immediately to all clients"""
+        if not self.active_connections:
+            return
+        
+        await self.broadcast({
+            "type": "finding_update",
+            "finding": finding,
+            "timestamp": datetime.now().isoformat()
+        })
 
 manager = ConnectionManager()
 

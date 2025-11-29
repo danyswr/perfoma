@@ -249,9 +249,10 @@ class AgentManager:
         return True
     
     async def stop_all_agents(self) -> Dict:
-        """Stop all agents immediately and generate final reports"""
+        """Stop all agents immediately and generate final reports with summary"""
         self.operation_active = False
         stopped_count = 0
+        start_time = None
         
         await self.logger.log_event(
             "Stopping all agents",
@@ -264,6 +265,8 @@ class AgentManager:
         for agent_id, agent in self.agents.items():
             try:
                 targets_set.add(agent.target)
+                if agent.start_time and (start_time is None or agent.start_time < start_time):
+                    start_time = agent.start_time
                 await agent.stop()
                 stopped_count += 1
                 await self.logger.log_event(
@@ -292,11 +295,32 @@ class AgentManager:
                     "error"
                 )
         
+        findings = self.shared_knowledge.get("findings", [])
+        severity_summary = await self.get_severity_summary()
+        
+        import time
+        duration = int(time.time() - start_time) if start_time else 0
+        
+        summary = {
+            "total_findings": len(findings),
+            "severity_breakdown": severity_summary,
+            "duration": duration,
+            "agents_used": len(self.agents),
+            "targets_scanned": list(targets_set)
+        }
+        
+        await self.logger.log_event(
+            "Mission completed",
+            "system",
+            summary
+        )
+        
         return {
             "status": "stopped",
             "agents_stopped": stopped_count,
             "total_agents": len(self.agents),
-            "reports_generated_for": list(targets_set)
+            "reports_generated_for": list(targets_set),
+            "summary": summary
         }
     
     async def get_agent_instruction_history(self, agent_id: str) -> List[Dict]:

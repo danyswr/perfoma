@@ -14,21 +14,8 @@ export const metadata: Metadata = {
     "AI-powered autonomous cybersecurity agent dashboard for vulnerability assessment and penetration testing",
   generator: "v0.app",
   icons: {
-    icon: [
-      {
-        url: "/icon-light-32x32.png",
-        media: "(prefers-color-scheme: light)",
-      },
-      {
-        url: "/icon-dark-32x32.png",
-        media: "(prefers-color-scheme: dark)",
-      },
-      {
-        url: "/icon.svg",
-        type: "image/svg+xml",
-      },
-    ],
-    apple: "/apple-icon.png",
+    icon: "/performa-logo.png",
+    apple: "/performa-logo.png",
   },
 }
 

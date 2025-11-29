@@ -111,7 +111,7 @@ export function useMission() {
     [fetchFindings],
   )
 
-  const stopMission = useCallback(() => {
+  const stopMission = useCallback(async () => {
     if (timerRef.current) {
       clearInterval(timerRef.current)
       timerRef.current = null
@@ -120,7 +120,24 @@ export function useMission() {
       clearInterval(findingsIntervalRef.current)
       findingsIntervalRef.current = null
     }
-    setMission((prev) => ({ ...prev, active: false }))
+    
+    try {
+      const response = await api.stopMission()
+      if (response.data) {
+        setMission((prev) => ({ 
+          ...prev, 
+          active: false,
+          summary: response.data?.summary || null,
+          reportsGenerated: response.data?.reports_generated_for || []
+        }))
+      } else {
+        setMission((prev) => ({ ...prev, active: false }))
+      }
+    } catch {
+      setMission((prev) => ({ ...prev, active: false }))
+    }
+    
+    saveMissionConfig(null)
   }, [])
 
   const updateProgress = useCallback((progress: number, activeAgents: number, completedTasks: number) => {
