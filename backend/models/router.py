@@ -436,20 +436,22 @@ class ModelRouter:
                 except Exception:
                     error_message = response.text[:200]
                 
-                if response.status_code == 402:
-                    error_msg = f"OpenRouter 402 Payment Required: Your account has insufficient credits. Please add credits to your OpenRouter account and try again."
-                    self.last_error = error_msg
-                    raise Exception(error_msg)
-                elif response.status_code == 401:
-                    error_msg = f"OpenRouter 401 Unauthorized: Invalid or expired API key."
+                # Only raise for actual error statuses, not partial responses
+                if response.status_code >= 500:
+                    error_msg = f"OpenRouter server error: {response.status_code}"
                     self.last_error = error_msg
                     raise Exception(error_msg)
                 elif response.status_code == 429:
-                    error_msg = f"OpenRouter 429 Rate Limited: Too many requests. Please wait before retrying."
+                    error_msg = f"Rate limited - retrying in {2 ** (self.error_count % 5)} seconds"
+                    self.last_error = error_msg
+                    raise Exception(error_msg)
+                elif response.status_code == 401:
+                    error_msg = "Invalid API key - check OPENROUTER_API_KEY"
                     self.last_error = error_msg
                     raise Exception(error_msg)
                 else:
-                    error_msg = f"OpenRouter API {response.status_code}: {error_message}"
+                    # For other non-200 responses, just raise a generic error
+                    error_msg = f"API error {response.status_code}: {error_message}"
                     self.last_error = error_msg
                     raise Exception(error_msg)
             
