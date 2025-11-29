@@ -4,6 +4,26 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-29**: Shared Instruction Queue System & Real-Time Updates ✅
+  - ✅ ADDED: Global shared instruction queue (backend/agent/shared_queue.py)
+    - All agents compete for next available instruction from single queue
+    - Queue format: {"1": "RUN cmd1", "2": "RUN cmd2", ...} sequential keys
+    - Thread-safe with asyncio locks - fixed deadlock by notifying listeners after lock release
+    - Methods: add_instruction, claim_next, complete_instruction, fail_instruction
+  - ✅ CHANGED: Model predicts 5-10 sequential instructions at once (token efficient)
+    - Reduces API calls by generating batch commands in one request
+    - Agents pick commands from shared queue as they become available
+  - ✅ IMPROVED: WebSocket real-time queue broadcasts (200ms intervals)
+    - Frontend receives queue state updates: pending, executing, completed counts
+    - Real-time instruction queue panel in sidebar
+  - ✅ ADDED: Queue display component in sidebar
+    - Shows pending instructions with sequential numbering
+    - Displays executing instructions with agent assignment
+    - Color-coded status indicators
+  - ✅ CHANGED: Execution time format from HH:MM:SS to MM:SS
+  - ✅ REMOVED: Per-agent rate limiting (kept only for models)
+  - STATUS: Agents now share global instruction queue with real-time updates
+
 - **2024-11-29**: Findings Organization & Real-Time Event Broadcasting ✅
   - ✅ CHANGED: Findings organized by target folder (e.g., findings/porsche.com/)
     - Each target gets its own folder with clean TXT files
