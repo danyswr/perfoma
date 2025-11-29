@@ -654,7 +654,7 @@ class AgentWorker:
                     agent_id=self.agent_id
                 )
             
-            await self.logger.write_finding(self.agent_id, finding)
+            await self.logger.write_finding(self.agent_id, finding, target=self.target)
             
             await self.logger.log_event(
                 f"Agent {self.agent_id} finding: {finding[:100]}...",
@@ -1009,7 +1009,7 @@ When done, respond with:
             
             self.shared_knowledge["findings"].append(finding_data)
             
-            await self.logger.write_finding(self.agent_id, finding)
+            await self.logger.write_finding(self.agent_id, finding, target=self.target)
             
             await self._broadcast_event("found", finding, severity.lower())
             
@@ -1178,7 +1178,7 @@ When done, respond with:
             severity=severity, category=self.category
         )
         
-        await self.logger.write_finding(self.agent_id, f"[{severity}] {content}")
+        await self.logger.write_finding(self.agent_id, f"[{severity}] {content}", target=self.target)
         
         await self._broadcast_event("found", content, severity.lower())
     

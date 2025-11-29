@@ -100,11 +100,12 @@ class AgentManager:
     async def start_operation(self, agent_ids: List[str], config: Dict):
         """Start autonomous operation with all agents"""
         self.operation_active = True
+        target = config.get("target", "general")
         
         await self.logger.log_event(
             "Operation started",
             "system",
-            {"num_agents": len(agent_ids), "config": config}
+            {"num_agents": len(agent_ids), "target": target}
         )
         
         # Start all agents concurrently
@@ -117,8 +118,8 @@ class AgentManager:
         # Run all agents
         await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Generate final report
-        await self.generate_report()
+        # Generate final report with target folder organization
+        await self.generate_report(target=target)
         
         self.operation_active = False
         
@@ -291,33 +292,28 @@ class AgentManager:
         
         return summary
     
-    async def generate_report(self):
-        """Generate final report of all findings"""
+    async def generate_report(self, target: str = None):
+        """Generate final report of all findings - JSON/TXT/PDF only (no HTML)"""
         from monitor.log import ReportGenerator
         
-        report_gen = ReportGenerator(self.shared_knowledge)
+        report_gen = ReportGenerator(self.shared_knowledge, target=target)
         
-        # Generate PDF report
-        pdf_path = await report_gen.generate_pdf()
-        
-        # Generate HTML report
-        html_path = await report_gen.generate_html()
-        
-        # Export JSON
+        txt_path = await report_gen.generate_txt_report()
         json_path = await report_gen.export_json()
+        pdf_path = await report_gen.generate_pdf()
         
         await self.logger.log_event(
             "Reports generated",
             "system",
             {
-                "pdf": pdf_path,
-                "html": html_path,
-                "json": json_path
+                "txt": txt_path,
+                "json": json_path,
+                "pdf": pdf_path
             }
         )
         
         return {
-            "pdf": pdf_path,
-            "html": html_path,
-            "json": json_path
+            "txt": txt_path,
+            "json": json_path,
+            "pdf": pdf_path
         }

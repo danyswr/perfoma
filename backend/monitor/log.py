@@ -61,11 +61,15 @@ class Logger:
         async with aiofiles.open(log_file, 'a') as f:
             await f.write(json.dumps(log_entry) + "\n")
     
-    async def write_finding(self, agent_id: str, content: str):
-        """Write finding to findings file"""
+    async def write_finding(self, agent_id: str, content: str, target: str = None):
+        """Write finding to target-specific findings file"""
+        
+        target_name = target if target else "general"
+        target_dir = os.path.join(self.findings_dir, target_name)
+        os.makedirs(target_dir, exist_ok=True)
         
         findings_file = os.path.join(
-            self.findings_dir,
+            target_dir,
             f"findings_{datetime.now().strftime('%Y%m%d')}.txt"
         )
         
@@ -78,77 +82,43 @@ class Logger:
 
 
 class ReportGenerator:
-    """Generate reports from findings"""
+    """Generate reports from findings - JSON/TXT/PDF only (no HTML)"""
     
-    def __init__(self, shared_knowledge: Dict):
+    def __init__(self, shared_knowledge: Dict, target: str = None):
         self.shared_knowledge = shared_knowledge
-        self.findings_dir = settings.FINDINGS_DIR
+        self.target = target or "general"
+        self.target_dir = os.path.join(settings.FINDINGS_DIR, self.target)
+        os.makedirs(self.target_dir, exist_ok=True)
         
-    async def generate_pdf(self) -> str:
-        """Generate PDF report (placeholder - requires reportlab)"""
+    async def generate_txt_report(self) -> str:
+        """Generate clean TXT report"""
         
-        filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        filepath = os.path.join(self.findings_dir, filename)
-        
-        # TODO: Implement PDF generation with reportlab
-        # For now, just create a placeholder
-        
-        return filepath
-    
-    async def generate_html(self) -> str:
-        """Generate HTML report"""
-        
-        filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
-        filepath = os.path.join(self.findings_dir, filename)
+        filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        filepath = os.path.join(self.target_dir, filename)
         
         findings = self.shared_knowledge.get("findings", [])
         
-        html_content = f"""
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Cyber Security Assessment Report</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 40px; }}
-        h1 {{ color: #333; }}
-        .finding {{ border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }}
-        .critical {{ border-left: 5px solid #dc3545; }}
-        .high {{ border-left: 5px solid #fd7e14; }}
-        .medium {{ border-left: 5px solid #ffc107; }}
-        .low {{ border-left: 5px solid #28a745; }}
-        .info {{ border-left: 5px solid #17a2b8; }}
-        .meta {{ color: #666; font-size: 0.9em; }}
-    </style>
-</head>
-<body>
-    <h1>Cyber Security Assessment Report</h1>
-    <p>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-    <p>Total Findings: {len(findings)}</p>
-    
-    <h2>Findings</h2>
+        content = f"""CYBER SECURITY ASSESSMENT REPORT
+Target: {self.target}
+Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Total Findings: {len(findings)}
+
+{'='*80}
+FINDINGS
+{'='*80}
 """
         
-        for finding in findings:
-            severity = finding.get("severity", "Info").lower()
-            html_content += f"""
-    <div class="finding {severity}">
-        <strong>{finding.get("severity", "Info")}</strong>
-        <p>{finding.get("content", "")}</p>
-        <div class="meta">
-            Agent: {finding.get("agent_id", "Unknown")} | 
-            Target: {finding.get("target", "Unknown")} | 
-            Time: {finding.get("timestamp", "Unknown")}
-        </div>
-    </div>
-"""
-        
-        html_content += """
-</body>
-</html>
+        for i, finding in enumerate(findings, 1):
+            content += f"""
+[{i}] {finding.get('severity', 'Info').upper()}
+Content: {finding.get('content', 'N/A')}
+Agent: {finding.get('agent_id', 'Unknown')}
+Time: {finding.get('timestamp', 'Unknown')}
+{'-'*80}
 """
         
         async with aiofiles.open(filepath, 'w') as f:
-            await f.write(html_content)
+            await f.write(content)
         
         return filepath
     
@@ -156,15 +126,57 @@ class ReportGenerator:
         """Export findings as JSON"""
         
         filename = f"findings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        filepath = os.path.join(self.findings_dir, filename)
+        filepath = os.path.join(self.target_dir, filename)
         
         data = {
+            "target": self.target,
             "timestamp": datetime.now().isoformat(),
-            "findings": self.shared_knowledge.get("findings", []),
-            "messages": self.shared_knowledge.get("messages", [])
+            "findings": self.shared_knowledge.get("findings", [])
         }
         
         async with aiofiles.open(filepath, 'w') as f:
             await f.write(json.dumps(data, indent=2))
+        
+        return filepath
+    
+    async def generate_pdf(self) -> str:
+        """Generate PDF report (if reportlab available)"""
+        
+        filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        filepath = os.path.join(self.target_dir, filename)
+        
+        try:
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import inch
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+            
+            doc = SimpleDocTemplate(filepath, pagesize=letter)
+            elements = []
+            styles = getSampleStyleSheet()
+            
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=24,
+                textColor='#333333',
+                spaceAfter=30,
+                alignment=TA_CENTER
+            )
+            
+            elements.append(Paragraph(f"Assessment Report: {self.target}", title_style))
+            elements.append(Spacer(1, 0.3*inch))
+            
+            findings = self.shared_knowledge.get("findings", [])
+            for finding in findings:
+                severity = finding.get("severity", "Info")
+                content = finding.get("content", "")
+                elements.append(Paragraph(f"<b>[{severity}]</b> {content}", styles['Normal']))
+                elements.append(Spacer(1, 0.2*inch))
+            
+            doc.build(elements)
+        except ImportError:
+            pass
         
         return filepath

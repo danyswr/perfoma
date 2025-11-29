@@ -4,6 +4,29 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-29**: Findings Organization & Real-Time Event Broadcasting ✅
+  - ✅ CHANGED: Findings organized by target folder (e.g., findings/porsche.com/)
+    - Each target gets its own folder with clean TXT files
+    - Format: findings/{target}/findings_YYYYMMDD.txt
+  - ✅ REMOVED: HTML report generation (cluttered & unnecessary)
+  - ✅ ADDED: Clean TXT report generation
+    - Format: findings/{target}/report_YYYYMMDD_HHMMSS.txt
+    - Clean, readable format with severity levels
+  - ✅ KEPT: JSON and PDF report formats
+    - findings/{target}/findings_YYYYMMDD_HHMMSS.json
+    - findings/{target}/report_YYYYMMDD_HHMMSS.pdf
+  - ✅ CHANGED: Real-time event broadcasting system
+    - Separate event types: "command", "found", "execute", "model_output", "info"
+    - History limited to 15 most recent items (not 100)
+    - Found findings show severity level with color coding (critical=red pulse)
+  - ✅ CHANGED: Model output format - batch JSON with 3-10 commands
+    - Model generates 3 batches with multiple commands per batch
+    - Agent queues commands and executes them one-by-one
+    - Next model call only after all commands executed (token efficient)
+  - ✅ FIXED: New agent mid-execution - pulls commands from shared queue
+    - get_agent_commands() allows new agents to pick up pending work
+  - STATUS: System now produces clean, organized findings with real-time broadcasting
+
 - **2024-11-29**: Batch JSON Commands & Target-Filtered Findings ✅
   - ✅ CHANGED: Model output format changed to strict JSON batch commands (3 batches, 3 commands each)
     - Format: `{"batch_1": {"1": "RUN cmd", "2": "RUN cmd2"}, "batch_2": {...}, "batch_3": {...}}`
@@ -64,61 +87,6 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
   - ✅ Per-agent task queue for non-blocking parallel execution
   - STATUS: System is operational and ready for agent deployment
 
-- **2024-11-28**: Instruction History, Real-time Timer & API Error Fix
-  - Added Instruction History panel in Agent Detail Dialog showing executed AI instructions
-  - Instruction history API endpoints: `/api/agents/{id}/history` (per-agent) and `/api/history` (global)
-  - Real-time instruction history updates with color-coded instruction types (command/decision/analysis)
-  - Verified OpenRouter API connection - returns success with 859ms latency
-  - **Fixed false 402 "Payment Required" error** - Removed overly aggressive error handling that triggered false positives
-  - API is fully functional and processing requests without payment issues
-
-- **2024-11-28**: UI Responsiveness and Layout Improvements
-  - Fixed Network resource display to auto-format large values (KB/s → MB/s → GB/s)
-  - Changed Active Agents from grid layout to vertical list for better readability
-  - Cleaned up execution time format to show consistent "00:00:00" format (HH:MM:SS)
-  - Fixed decimal overflow in agent detail modal execution time display
-
-- **2024-11-28**: UI Polish and Export Improvements
-  - Simplified agent cards to focus on execution time with live timer
-  - Created comprehensive agent detail modal with CPU/Memory monitoring charts (Recharts)
-  - Updated findings export to support JSON, CSV, and PDF formats (removed HTML)
-  - Added text report fallback when PDF generation is unavailable
-  - Enhanced FindingCard UI with severity-based colors, badges, and layout improvements
-  - Added CVSS score display and timestamp footer to findings
-
-- **2024-11-28**: Agent Card and Real-time Updates Improvements
-  - Replaced progress bar with execution time display in AgentCard component
-  - Updated AgentCard styling to match ResourceMonitor with CPU/Memory bars
-  - Added real-time agent status broadcasts via WebSocket (agent_status message type)
-  - Fixed Model Instructions history persistence using dual localStorage strategy
-  - Improved WebSocket message handling to properly merge updates without overwriting existing values
-  - Added module-level psutil priming for non-blocking CPU/memory sampling
-  - Fixed CPU metrics to accept 0% values as valid readings
-  - Added caching for last known CPU/memory values as fallback
-
-- **2024-11-28**: UI and Queue panel improvements
-  - Removed CPU/Memory graphs from agent cards (now only in detail dialog) for cleaner interface
-  - Fixed Queue panel buttons to use backend-supported commands: /queue list, /queue add {json}, /queue rm index, /queue edit
-  - Added command format documentation in Queue tab
-  - Removed unused AgentResourceGraph import
-  - Fixed React key warning in FindingCard component
-
-- **2024-11-28**: Added advanced monitoring features
-  - Model Instructions History: New "History" tab in chat sidebar to track AI model commands sent to agents
-  - OS Type Configuration: Added Linux/Windows selection in Mode tab for proper command execution
-  - Mission Timer: Added timer component in navbar showing elapsed time during active missions with fallback for page reloads
-  - Agent Resource Graphs: Real-time CPU and Memory monitoring graphs in agent detail dialog
-  - Fixed chart dimension warnings by adding minWidth/minHeight constraints
-  - Mission startTime now properly persists across state updates
-  - Model instructions hook captures agent_update/agent_status WebSocket events for command history
-
-- **2024-11-28**: Fixed agent state management issues
-  - Fixed race condition where polling could overwrite newly created agents
-  - Added isCreatingRef flag to prevent state overwrites during agent creation
-  - Reduced polling frequency from 1s to 3s to prevent race conditions
-  - Fixed health check flickering by only showing "checking" on initial load
-  - Extended protection window for syncAgents (3s) and addAgent (2s)
-
 - **2024-11-27**: Completed Replit environment setup
   - Installed Python 3.11 and all required dependencies
   - Configured Next.js for Replit's proxy environment (allowedDevOrigins)
@@ -134,13 +102,13 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
 - **Framework**: Next.js with React 19 and TypeScript
 - **UI Components**: Radix UI, Tailwind CSS, shadcn/ui components
 - **Key Features**:
-  - Real-time agent monitoring dashboard
+  - Real-time event broadcast history (15 most recent)
+  - Event types: command, found (with severity colors), execute, model_output, info
   - Live chat interface for AI agents
-  - Model Instructions History (tracks AI commands to agents)
+  - Model Instructions History with color-coded event types
   - Per-agent CPU and Memory resource graphs
   - Mission Timer with elapsed time display
   - OS Type configuration (Linux/Windows)
-  - Resource monitoring and visualization
   - Security findings panel with severity tracking
   - Mission configuration and control
 
@@ -148,13 +116,23 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
 - **Framework**: FastAPI with Uvicorn
 - **Key Components**:
   - Multi-agent management system
-  - WebSocket support for real-time updates
+  - WebSocket support for real-time broadcast events
   - Resource monitoring (CPU, memory, disk)
-  - Findings aggregation and reporting
-  - Stealth operation capabilities (proxy, fingerprinting, timing)
-- **AI Integration**: Supports OpenRouter and custom model endpoints
+  - Findings aggregation by target folder
+  - Batch command generation & execution
+  - Queue-based command distribution
+  - Stealth operation capabilities
+- **AI Integration**: OpenRouter primary provider (Claude, GPT-4, Gemini, Llama, etc.)
 
-### Workflow Configuration
+### Findings Organization
+- **Structure**: findings/{target_name}/{files}
+  - findings/porsche.com/findings_20241129.txt
+  - findings/porsche.com/report_20241129_120530.txt
+  - findings/porsche.com/findings_20241129_120530.json
+  - findings/porsche.com/report_20241129_120530.pdf
+- **No HTML reports** - Clean TXT, JSON, PDF only
+
+## Workflow Configuration
 - **Development**: `bash run.sh` starts both services
   - Backend: localhost:8000 (internal)
   - Frontend: 0.0.0.0:5000 (exposed)
@@ -168,7 +146,7 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
 - `HOST`: Backend bind address (0.0.0.0)
 - `PORT`: Backend port (8000)
 - `LOG_DIR`: Directory for application logs (./logs)
-- `FINDINGS_DIR`: Directory for security findings (./findings)
+- `FINDINGS_DIR`: Directory for findings (./findings)
 - `NEXT_PUBLIC_API_URL`: Empty (uses relative paths with rewrites)
 - `NEXT_PUBLIC_WS_URL`: WebSocket URL for frontend
 
@@ -191,12 +169,17 @@ A sophisticated Next.js frontend with Python FastAPI backend system for autonomo
 - recharts - Data visualization
 
 ## User Preferences
-- None specified yet
+- Clean, organized findings (no HTML clutter)
+- Separate folders for each target
+- TXT/JSON/PDF reports only
+- Real-time event broadcasting with clear labels
+- History limited to 15 recent items (not overwhelming)
+- Token-efficient model output (batch commands)
 
 ## Notes
-- The system requires an OpenRouter API key to function (agents use LLMs for operation)
-- Backend logs show successful API communication
-- Frontend health checks are working (backend receiving /api/agents requests)
-- WebSocket HMR warnings in development are cosmetic and don't affect functionality (this is Next.js dev server's hot reload, not the application's WebSocket)
-- Chart dimension warnings during initial render are cosmetic - charts function correctly after data loads
-- The application's actual WebSocket for real-time updates uses the `/ws/*` routes, which work properly
+- Findings organized by target in findings/{target_name}/ folders
+- Each target has clean TXT log files plus JSON/PDF reports
+- Real-time WebSocket broadcasts show events: command, found (with severity), execute, info
+- Model generates 3-10 commands in batch, agent queues and executes them one-by-one
+- New agents can pick up pending commands from queue mid-execution
+- Rate limiting with adaptive delays prevents API errors
