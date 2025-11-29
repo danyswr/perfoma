@@ -306,18 +306,84 @@ class AgentMemory:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
     
-    async def get_findings_summary(self) -> Dict:
-        """Get summary of findings by severity"""
+    async def get_findings_summary(self, target: str = None) -> Dict:
+        """Get summary of findings by severity, optionally filtered by target"""
         await self.initialize()
         
         async with aiosqlite.connect(self.db_path) as db:
+            if target:
+                async with db.execute("""
+                    SELECT severity, COUNT(*) as count 
+                    FROM findings 
+                    WHERE target = ?
+                    GROUP BY severity
+                """, (target,)) as cursor:
+                    rows = await cursor.fetchall()
+                    return {row[0]: row[1] for row in rows}
+            else:
+                async with db.execute("""
+                    SELECT severity, COUNT(*) as count 
+                    FROM findings 
+                    GROUP BY severity
+                """) as cursor:
+                    rows = await cursor.fetchall()
+                    return {row[0]: row[1] for row in rows}
+    
+    async def get_findings_for_target(self, target: str, limit: int = 50) -> List[Dict]:
+        """Get all findings specifically for a target - used by agents to see only relevant data"""
+        await self.initialize()
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            
             async with db.execute("""
-                SELECT severity, COUNT(*) as count 
+                SELECT id, agent_id, target, content, severity, category, 
+                       verified, exploitable, cvss_score, cve_id, created_at, metadata
                 FROM findings 
-                GROUP BY severity
-            """) as cursor:
+                WHERE target = ?
+                ORDER BY 
+                    CASE severity 
+                        WHEN 'Critical' THEN 1 
+                        WHEN 'High' THEN 2 
+                        WHEN 'Medium' THEN 3 
+                        WHEN 'Low' THEN 4 
+                        ELSE 5 
+                    END,
+                    created_at DESC
+                LIMIT ?
+            """, (target, limit)) as cursor:
                 rows = await cursor.fetchall()
-                return {row[0]: row[1] for row in rows}
+                return [dict(row) for row in rows]
+    
+    async def get_target_context(self, target: str) -> Dict:
+        """Get comprehensive context about a target for agent decision making"""
+        await self.initialize()
+        
+        findings = await self.get_findings_for_target(target, limit=20)
+        summary = await self.get_findings_summary(target)
+        
+        knowledge = await self.get_knowledge(knowledge_type="discovery")
+        target_knowledge = [k for k in knowledge if k.get("key", "").startswith(target) or target in str(k.get("value", ""))]
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT command, result, success, execution_time, timestamp
+                FROM execution_history
+                WHERE command LIKE ?
+                ORDER BY timestamp DESC
+                LIMIT 10
+            """, (f"%{target}%",)) as cursor:
+                exec_history = [dict(row) for row in await cursor.fetchall()]
+        
+        return {
+            "target": target,
+            "findings": findings,
+            "severity_summary": summary,
+            "knowledge": target_knowledge[:10],
+            "recent_executions": exec_history,
+            "total_findings": len(findings)
+        }
     
     async def send_agent_message(self, from_agent: str, to_agent: str, 
                                  message_type: str, content: str, 

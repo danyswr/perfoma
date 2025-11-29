@@ -360,7 +360,7 @@ class AgentWorker:
                     "content": response
                 })
                 
-                if "<END!>" in response:
+                if "<END!>" in response or '"status": "END"' in response or '"status":"END"' in response:
                     self.last_execute = "Mission completed successfully"
                     await self.logger.log_event(
                         f"Agent {self.agent_id} completed mission",
@@ -373,8 +373,18 @@ class AgentWorker:
                 commands = self._extract_commands(response)
                 
                 if commands:
+                    self._save_instruction_to_history(response, commands)
                     await self._execute_commands_with_coordination(commands)
                     await self._broadcast_status_update()
+                
+                json_findings = self._extract_findings_from_json(response)
+                if json_findings:
+                    for jf in json_findings:
+                        if isinstance(jf, dict):
+                            content = jf.get("content", "")
+                            severity = jf.get("severity", "Info")
+                            if content:
+                                await self._save_single_finding(content, severity)
                 
                 findings = self._extract_findings(response)
                 
@@ -673,124 +683,194 @@ class AgentWorker:
         await asyncio.sleep(final_delay)
     
     def _build_system_prompt(self) -> str:
-        """Build system prompt for AI model with available tools"""
+        """Build system prompt for AI model - outputs ONLY batch JSON commands"""
         
         mode_str = "Stealth (evade detection)" if self.stealth_mode else "Aggressive (thorough scanning)" if self.aggressive_mode else "Normal"
         
         custom_section = ""
         if self.custom_instruction:
-            custom_section = f"\n## CUSTOM INSTRUCTION\n{self.custom_instruction}\n"
+            custom_section = f"\nCUSTOM: {self.custom_instruction}\n"
         
-        # Build available tools section
         tools_by_category = get_allowed_tools_by_category()
-        tools_section = "## AVAILABLE TOOLS BY CATEGORY\n\n"
+        tools_list = []
         for category, tools in tools_by_category.items():
-            category_display = category.replace("_", " ").title()
-            tools_list = ", ".join(sorted(list(tools))[:10])  # Show first 10 per category
-            tools_section += f"### {category_display}\n{tools_list}{'... and more' if len(tools) > 10 else ''}\n\n"
+            tools_list.extend(list(tools)[:8])
+        tools_str = ", ".join(sorted(set(tools_list))[:30])
         
-        prompt = f"""You are an elite autonomous cyber security agent (Agent #{self.agent_number}) conducting advanced security assessment.
+        prompt = f"""You are Agent #{self.agent_number} - autonomous cybersecurity scanner.
 
 Target: {self.target}
 Category: {self.category}
 Mode: {mode_str}
-
-## CORE CAPABILITIES
-
-### 1. Command Execution
-Execute security tools using: RUN <command>
-Example: RUN nmap -sV -sC {self.target}
-ALL commands must use tools from the AVAILABLE TOOLS list below.
-
-### 2. Finding Documentation
-Save findings using: <write>content</write>
-Include severity: Critical/High/Medium/Low/Info
-
-### 3. Completion Signal
-Use <END!> when mission objectives are met.
-
-{tools_section}
-
-## METHODOLOGY
-
-1. **Reconnaissance**: Use network_recon tools (nmap, amass, subfinder) to map attack surface
-2. **Enumeration**: Use web_scanning tools (nikto, gobuster, httpx) to discover services
-3. **Vulnerability Discovery**: Use vuln_scanning tools (trivy, nuclei) to identify issues
-4. **Exploitation Testing**: Use exploitation tools to validate findings
-5. **Documentation**: Record all findings with <write> tags
-6. **Collaboration**: Share critical discoveries with other agents
 {custom_section}
+AVAILABLE TOOLS: {tools_str}
+
+## OUTPUT FORMAT - MANDATORY JSON ONLY
+
+You MUST respond with ONLY a JSON object containing 3 batches of commands.
+Each batch has commands for different agents (keys: "1", "2", etc).
+Commands MUST start with "RUN ".
+
+Example response format:
+```json
+{{
+  "batch_1": {{"1": "RUN nmap -sV -sC {self.target}", "2": "RUN nikto -h {self.target}"}},
+  "batch_2": {{"1": "RUN gobuster dir -u http://{self.target} -w /usr/share/wordlists/dirb/common.txt", "2": "RUN subfinder -d {self.target}"}},
+  "batch_3": {{"1": "RUN nuclei -u {self.target}", "2": "RUN httpx -l subdomains.txt"}}
+}}
+```
+
+## FINDINGS FORMAT
+To report findings, add a "findings" array in JSON:
+```json
+{{
+  "batch_1": {{"1": "RUN command1", "2": "RUN command2"}},
+  "findings": [
+    {{"severity": "High", "content": "SQL Injection found at /login"}},
+    {{"severity": "Medium", "content": "Missing X-Frame-Options header"}}
+  ]
+}}
+```
+
+## COMPLETION
+When done, respond with:
+```json
+{{"status": "END", "summary": "Assessment complete"}}
+```
 
 ## RULES
-- ONLY use tools from the AVAILABLE TOOLS list above
-- Be methodical and thorough
-- Document ALL findings with <write> tags
-- Include severity classification (Critical/High/Medium/Low/Info)
-- Provide exploitation proof when possible
-- Signal <END!> only when objectives are fully met
-- Never use forbidden commands (rm -rf, mkfs, chmod 777 /, etc.)
+- Output ONLY valid JSON, no explanations or text
+- Each batch contains commands for parallel execution by different agents
+- Agent key "1" = Agent #1, "2" = Agent #2, etc.
+- You are Agent #{self.agent_number}, so you execute commands with key "{self.agent_number}"
+- DO NOT include any text outside the JSON object
+- Use only tools from AVAILABLE TOOLS list
 """
         
         return prompt
     
+    async def _build_user_message_json(self, iteration: int) -> str:
+        """Build user message with target-filtered context for JSON batch output"""
+        
+        target_findings = await self.memory.get_findings_for_target(self.target, limit=10)
+        
+        message = f'{{"iteration": {iteration}, "target": "{self.target}"'
+        
+        if target_findings:
+            findings_json = []
+            for f in target_findings[:5]:
+                findings_json.append(f'{{"severity": "{f.get("severity", "Info")}", "content": "{str(f.get("content", ""))[:100]}"}}')
+            message += f', "existing_findings": [{", ".join(findings_json)}]'
+        
+        if self.execution_history:
+            last_exec = self.execution_history[-1]
+            cmd = last_exec.get('command', '').replace('"', '\\"')[:80]
+            result = last_exec.get('result', '').replace('"', '\\"').replace('\n', ' ')[:200]
+            message += f', "last_command": "{cmd}", "last_result": "{result}"'
+        
+        message += '}'
+        
+        return message
+    
     def _build_user_message(self, iteration: int) -> str:
-        """Build user message for current iteration"""
+        """Build user message for current iteration - simple format"""
         
-        # Check shared knowledge for updates from other agents
-        recent_findings = self.shared_knowledge.get("findings", [])[-5:]
-        recent_messages = self.shared_knowledge.get("messages", [])[-5:]
+        target_findings = [f for f in self.shared_knowledge.get("findings", []) 
+                         if f.get("target") == self.target][-5:]
         
-        message = f"Iteration {iteration}:\n\n"
+        message = f"Iteration {iteration} for target {self.target}:\n\n"
         
-        if recent_findings:
-            message += "Recent findings from team:\n"
-            for finding in recent_findings:
-                message += f"- [{finding.get('agent_id')}] {finding.get('content', '')}\n"
-            message += "\n"
-        
-        if recent_messages:
-            message += "Recent messages from team:\n"
-            for msg in recent_messages:
-                if msg.get('agent_id') != self.agent_id:  # Skip own messages
-                    message += f"- [{msg.get('agent_id')}] {msg.get('content', '')}\n"
+        if target_findings:
+            message += "Target findings:\n"
+            for finding in target_findings:
+                message += f"- [{finding.get('severity', 'Info')}] {finding.get('content', '')[:80]}\n"
             message += "\n"
         
         if self.execution_history:
             last_execution = self.execution_history[-1]
-            message += f"Last command executed: {last_execution.get('command')}\n"
-            message += f"Result: {last_execution.get('result', '')[:500]}...\n\n"  # Truncate for token efficiency
+            message += f"Last: {last_execution.get('command', '')[:80]}\n"
+            message += f"Result: {last_execution.get('result', '')[:300]}\n\n"
         
-        message += "What is your next action? Provide commands to execute or signal completion with <END!>"
+        message += "Respond with JSON batch commands only."
         
         return message
     
     def _extract_commands(self, response: str) -> Dict[str, str]:
-        """Extract RUN commands from response"""
+        """Extract RUN commands from JSON batch response - returns only commands for this agent"""
         
-        # Check if response contains JSON batch commands
-        json_pattern = r'\{[^}]*"(?:\d+|agent[^"]*)":\s*"RUN[^}]+\}'
-        json_matches = re.findall(json_pattern, response, re.DOTALL)
+        response_clean = response.strip()
+        if response_clean.startswith("```json"):
+            response_clean = response_clean[7:]
+        if response_clean.startswith("```"):
+            response_clean = response_clean[3:]
+        if response_clean.endswith("```"):
+            response_clean = response_clean[:-3]
+        response_clean = response_clean.strip()
         
-        if json_matches:
-            try:
-                # Parse JSON batch
-                commands = json.loads(json_matches[0])
-                # Filter to only this agent's commands
-                agent_key = str(self.agent_number)
-                if agent_key in commands:
-                    return {agent_key: commands[agent_key]}
-                return commands
-            except json.JSONDecodeError:
-                pass
+        try:
+            data = json.loads(response_clean)
+            
+            if data.get("status") == "END":
+                return {}
+            
+            agent_key = str(self.agent_number)
+            my_commands = {}
+            
+            for batch_name in ["batch_1", "batch_2", "batch_3"]:
+                batch = data.get(batch_name, {})
+                if isinstance(batch, dict) and agent_key in batch:
+                    cmd = batch[agent_key]
+                    if isinstance(cmd, str) and cmd.startswith("RUN "):
+                        cmd_num = len(my_commands) + 1
+                        my_commands[str(cmd_num)] = cmd
+            
+            if not my_commands:
+                for batch_name, batch in data.items():
+                    if isinstance(batch, dict):
+                        if agent_key in batch:
+                            cmd = batch[agent_key]
+                            if isinstance(cmd, str) and cmd.startswith("RUN "):
+                                cmd_num = len(my_commands) + 1
+                                my_commands[str(cmd_num)] = cmd
+            
+            if my_commands:
+                return my_commands
+                
+        except json.JSONDecodeError:
+            pass
         
-        # Otherwise extract individual RUN commands
-        run_pattern = r'RUN\s+(.+?)(?:\n|$)'
+        run_pattern = r'RUN\s+(.+?)(?:\n|$|")'
         matches = re.findall(run_pattern, response)
         
         if matches:
-            return {"1": f"RUN {matches[0]}"}
+            commands = {}
+            for i, match in enumerate(matches[:3], 1):
+                commands[str(i)] = f"RUN {match.strip()}"
+            return commands
         
         return {}
+    
+    def _extract_findings_from_json(self, response: str) -> List[Dict]:
+        """Extract findings from JSON response"""
+        
+        response_clean = response.strip()
+        if response_clean.startswith("```json"):
+            response_clean = response_clean[7:]
+        if response_clean.startswith("```"):
+            response_clean = response_clean[3:]
+        if response_clean.endswith("```"):
+            response_clean = response_clean[:-3]
+        response_clean = response_clean.strip()
+        
+        try:
+            data = json.loads(response_clean)
+            findings = data.get("findings", [])
+            if isinstance(findings, list):
+                return findings
+        except json.JSONDecodeError:
+            pass
+        
+        return []
     
     def _extract_findings(self, response: str) -> List[str]:
         """Extract findings marked with <write> tags"""
@@ -1000,50 +1080,81 @@ Use <END!> when mission objectives are met.
         self.stopped = True
         self.status = "stopped"
     
+    def _save_instruction_to_history(self, response: str, commands: Dict[str, str]):
+        """Save only the extracted commands to instruction history - not full response"""
+        timestamp = datetime.now().isoformat()
+        
+        for key, cmd in commands.items():
+            instruction_record = {
+                "id": len(self.instruction_history) + 1,
+                "command": cmd,
+                "agent_key": key,
+                "timestamp": timestamp,
+                "model_name": self.model_name,
+                "target": self.target
+            }
+            self.instruction_history.append(instruction_record)
+        
+        if len(self.instruction_history) > 100:
+            self.instruction_history = self.instruction_history[-100:]
+    
+    async def _save_single_finding(self, content: str, severity: str = "Info"):
+        """Save a single finding from JSON response"""
+        finding_data = {
+            "agent_id": self.agent_id,
+            "agent_number": self.agent_number,
+            "content": content,
+            "severity": severity,
+            "timestamp": datetime.now().isoformat(),
+            "target": self.target
+        }
+        
+        self.shared_knowledge["findings"].append(finding_data)
+        
+        await self.memory.save_finding(
+            self.agent_id, self.target, content,
+            severity=severity, category=self.category
+        )
+        
+        await self.logger.write_finding(self.agent_id, f"[{severity}] {content}")
+    
     async def _broadcast_model_instruction(self, response: str):
-        """Broadcast model instruction to WebSocket clients and store in history"""
+        """Broadcast model instruction to WebSocket clients - only commands"""
         try:
             from server.ws import manager
             
-            # Determine instruction type based on content
-            instruction_type = "analysis"
-            if "RUN " in response:
-                instruction_type = "command"
-            elif "<write>" in response or "finding" in response.lower():
-                instruction_type = "decision"
+            commands = self._extract_commands(response)
+            if not commands:
+                return
             
-            # Extract a summary of the response (first 500 chars)
-            summary = response[:500] + ("..." if len(response) > 500 else "")
             timestamp = datetime.now().isoformat()
             
-            # Store in instruction history
-            instruction_record = {
-                "id": len(self.instruction_history) + 1,
-                "instruction": summary,
-                "full_response": response,
-                "instruction_type": instruction_type,
-                "timestamp": timestamp,
-                "model_name": self.model_name
-            }
-            self.instruction_history.append(instruction_record)
-            
-            # Keep only last 100 instructions
-            if len(self.instruction_history) > 100:
-                self.instruction_history = self.instruction_history[-100:]
+            cmd_list = list(commands.values())
+            instruction_summary = " | ".join(cmd_list[:3])
             
             await manager.broadcast({
                 "type": "model_instruction",
                 "agent_id": self.agent_id,
                 "model_name": self.model_name,
-                "instruction": summary,
-                "instruction_type": instruction_type,
+                "commands": cmd_list,
+                "instruction": instruction_summary[:200],
+                "instruction_type": "command",
                 "timestamp": timestamp,
-                "history_id": instruction_record["id"]
+                "target": self.target
             })
         except Exception:
-            # Silent fail for broadcast errors
             pass
     
     def get_instruction_history(self) -> List[Dict]:
-        """Get the instruction history for this agent"""
-        return self.instruction_history
+        """Get the instruction history for this agent - only commands, no full response"""
+        return [
+            {
+                "id": item.get("id"),
+                "command": item.get("command"),
+                "timestamp": item.get("timestamp"),
+                "target": item.get("target"),
+                "model_name": item.get("model_name")
+            }
+            for item in self.instruction_history
+            if item.get("command")
+        ]

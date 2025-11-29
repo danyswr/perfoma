@@ -1,63 +1,128 @@
-"""Per-agent queue distributor for task management"""
-from typing import Dict, List, Any
+"""Per-agent queue distributor for task management - each agent has independent queue"""
+from typing import Dict, List, Any, Optional
 import json
+import asyncio
 
 class QueueDistributor:
-    """Distributes model predictions to agent-specific queues"""
+    """Distributes model predictions to agent-specific queues - no waiting between agents"""
     
     def __init__(self):
         self.agent_queues: Dict[str, List[Dict]] = {}
+        self.agent_locks: Dict[str, asyncio.Lock] = {}
+        self.processed_commands: Dict[str, set] = {}
     
-    def parse_model_batches(self, response: str) -> List[Dict[str, str]]:
-        """Parse model response to extract 3 instruction batches"""
-        batches = []
-        
-        # Try to extract JSON batches from response
-        import re
-        json_pattern = r'\{[^}]*"(?:\d+|agent[^"]*)":\s*"RUN[^}]+\}'
-        matches = re.findall(json_pattern, response, re.DOTALL)
-        
-        for match in matches[:3]:  # Take up to 3 batches
-            try:
-                batch = json.loads(match)
-                batches.append(batch)
-            except json.JSONDecodeError:
-                pass
-        
-        return batches if batches else [{}]
+    def _get_lock(self, agent_id: str) -> asyncio.Lock:
+        """Get or create lock for agent"""
+        if agent_id not in self.agent_locks:
+            self.agent_locks[agent_id] = asyncio.Lock()
+        return self.agent_locks[agent_id]
     
-    def distribute_to_agents(self, batches: List[Dict[str, str]], agent_ids: List[str]):
-        """Distribute batches to agent-specific queues"""
-        for idx, agent_id in enumerate(agent_ids):
-            if idx < len(batches):
-                batch = batches[idx]
-                if agent_id not in self.agent_queues:
-                    self.agent_queues[agent_id] = []
-                
-                # Convert batch to individual instructions with agent key "1"
-                if batch:
-                    commands = []
-                    for cmd in batch.values():
-                        if isinstance(cmd, str) and cmd.startswith("RUN"):
-                            commands.append({"key": "1", "command": cmd})
-                    
-                    if commands:
-                        self.agent_queues[agent_id].extend(commands)
+    def parse_model_response(self, response: str) -> Dict[str, Any]:
+        """Parse full model JSON response into structured batches"""
+        response_clean = response.strip()
+        if response_clean.startswith("```json"):
+            response_clean = response_clean[7:]
+        if response_clean.startswith("```"):
+            response_clean = response_clean[3:]
+        if response_clean.endswith("```"):
+            response_clean = response_clean[:-3]
+        response_clean = response_clean.strip()
+        
+        try:
+            data = json.loads(response_clean)
+            return data
+        except json.JSONDecodeError:
+            return {}
+    
+    def distribute_to_agents(self, model_response: str, agent_map: Dict[str, int]):
+        """Distribute commands to agent-specific queues based on agent number"""
+        data = self.parse_model_response(model_response)
+        
+        if not data or data.get("status") == "END":
+            return
+        
+        for agent_id, agent_number in agent_map.items():
+            agent_key = str(agent_number)
+            if agent_id not in self.agent_queues:
+                self.agent_queues[agent_id] = []
+            if agent_id not in self.processed_commands:
+                self.processed_commands[agent_id] = set()
+            
+            for batch_name in ["batch_1", "batch_2", "batch_3"]:
+                batch = data.get(batch_name, {})
+                if isinstance(batch, dict) and agent_key in batch:
+                    cmd = batch[agent_key]
+                    if isinstance(cmd, str) and cmd.startswith("RUN "):
+                        cmd_hash = hash(cmd)
+                        if cmd_hash not in self.processed_commands[agent_id]:
+                            self.agent_queues[agent_id].append({
+                                "batch": batch_name,
+                                "key": agent_key,
+                                "command": cmd,
+                                "status": "pending"
+                            })
+                            self.processed_commands[agent_id].add(cmd_hash)
+    
+    async def get_next_command(self, agent_id: str) -> Optional[Dict]:
+        """Get next pending command for agent - async safe"""
+        lock = self._get_lock(agent_id)
+        async with lock:
+            if agent_id in self.agent_queues:
+                for cmd in self.agent_queues[agent_id]:
+                    if cmd.get("status") == "pending":
+                        cmd["status"] = "executing"
+                        return cmd
+            return None
+    
+    async def complete_command(self, agent_id: str, command: str, result: str = None):
+        """Mark command as completed"""
+        lock = self._get_lock(agent_id)
+        async with lock:
+            if agent_id in self.agent_queues:
+                for cmd in self.agent_queues[agent_id]:
+                    if cmd.get("command") == command:
+                        cmd["status"] = "completed"
+                        cmd["result"] = result
+                        break
     
     def get_agent_queue(self, agent_id: str) -> List[Dict]:
-        """Get next instruction for agent"""
-        if agent_id in self.agent_queues and self.agent_queues[agent_id]:
-            return self.agent_queues[agent_id]
-        return []
+        """Get all commands in agent queue"""
+        return self.agent_queues.get(agent_id, [])
+    
+    def get_pending_count(self, agent_id: str) -> int:
+        """Get count of pending commands for agent"""
+        if agent_id in self.agent_queues:
+            return sum(1 for cmd in self.agent_queues[agent_id] if cmd.get("status") == "pending")
+        return 0
     
     def pop_agent_instruction(self, agent_id: str) -> Dict:
-        """Pop next instruction for agent"""
+        """Pop next instruction for agent (sync version)"""
         if agent_id in self.agent_queues and self.agent_queues[agent_id]:
-            return self.agent_queues[agent_id].pop(0)
+            for i, cmd in enumerate(self.agent_queues[agent_id]):
+                if cmd.get("status") == "pending":
+                    self.agent_queues[agent_id][i]["status"] = "executing"
+                    return cmd
         return {}
     
     def add_instruction(self, agent_id: str, command: str):
         """Add instruction to agent queue"""
         if agent_id not in self.agent_queues:
             self.agent_queues[agent_id] = []
-        self.agent_queues[agent_id].append({"key": "1", "command": command})
+        if agent_id not in self.processed_commands:
+            self.processed_commands[agent_id] = set()
+            
+        cmd_hash = hash(command)
+        if cmd_hash not in self.processed_commands[agent_id]:
+            self.agent_queues[agent_id].append({
+                "key": "1",
+                "command": command,
+                "status": "pending"
+            })
+            self.processed_commands[agent_id].add(cmd_hash)
+    
+    def clear_agent_queue(self, agent_id: str):
+        """Clear queue for agent"""
+        if agent_id in self.agent_queues:
+            self.agent_queues[agent_id] = []
+        if agent_id in self.processed_commands:
+            self.processed_commands[agent_id] = set()

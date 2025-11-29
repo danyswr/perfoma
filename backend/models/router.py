@@ -427,47 +427,59 @@ class ModelRouter:
                 timeout=120.0
             )
             
+            data = response.json()
+            
             if response.status_code != 200:
-                self.error_count += 1
+                error_data = data if isinstance(data, dict) else {}
+                error_obj = error_data.get("error", {})
+                error_message = error_obj.get("message", "") if isinstance(error_obj, dict) else str(error_obj)
+                error_code = error_obj.get("code", "") if isinstance(error_obj, dict) else ""
                 
-                try:
-                    error_data = response.json()
-                    error_message = error_data.get("error", {}).get("message", str(error_data))
-                except Exception:
-                    error_message = response.text[:200]
+                print(f"[OpenRouter] Status {response.status_code}: {error_message}")
                 
-                print(f"[OpenRouter] Error {response.status_code}: {error_message}")
-                
-                # Only raise for actual critical error statuses
                 if response.status_code >= 500:
+                    self.error_count += 1
                     error_msg = f"OpenRouter server error {response.status_code}"
                     self.last_error = error_msg
                     raise Exception(error_msg)
                 elif response.status_code == 429:
+                    self.error_count += 1
                     error_msg = f"Rate limited - wait before retrying"
                     self.last_error = error_msg
                     raise Exception(error_msg)
                 elif response.status_code == 401:
-                    error_msg = f"Invalid OpenRouter API key"
+                    self.error_count += 1
+                    error_msg = f"Invalid API key"
                     self.last_error = error_msg
                     raise Exception(error_msg)
                 elif response.status_code == 402:
-                    # Payment/credits issue - show the actual error from OpenRouter
-                    error_msg = f"OpenRouter: {error_message}"
-                    self.last_error = error_msg
-                    raise Exception(error_msg)
+                    if "insufficient" in error_message.lower() or "credit" in error_message.lower() or "balance" in error_message.lower():
+                        self.error_count += 1
+                        error_msg = f"Insufficient credits: {error_message}"
+                        self.last_error = error_msg
+                        raise Exception(error_msg)
+                    else:
+                        print(f"[OpenRouter] 402 but not credit issue, retrying...")
+                        self.error_count += 1
+                        error_msg = f"Payment issue: {error_message}"
+                        self.last_error = error_msg
+                        raise Exception(error_msg)
                 else:
-                    # For other errors, show the actual API response
+                    self.error_count += 1
                     error_msg = f"API {response.status_code}: {error_message}"
                     self.last_error = error_msg
                     raise Exception(error_msg)
             
-            data = response.json()
-            
             if "choices" not in data or len(data["choices"]) == 0:
+                if "error" in data:
+                    error_obj = data.get("error", {})
+                    error_message = error_obj.get("message", str(error_obj)) if isinstance(error_obj, dict) else str(error_obj)
+                    raise Exception(f"API error: {error_message}")
                 raise Exception("Invalid response structure from OpenRouter")
             
-            content = data["choices"][0]["message"]["content"].strip()
+            content = data["choices"][0]["message"]["content"]
+            if content:
+                content = content.strip()
             
             if not content:
                 raise Exception("Empty response from OpenRouter")
