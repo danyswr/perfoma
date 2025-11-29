@@ -126,3 +126,31 @@ class QueueDistributor:
             self.agent_queues[agent_id] = []
         if agent_id in self.processed_commands:
             self.processed_commands[agent_id] = set()
+    
+    async def get_agent_commands(self, agent_id: str, limit: int = 5) -> List[str]:
+        """Get pending commands for agent - for new agents joining mid-execution"""
+        lock = self._get_lock(agent_id)
+        async with lock:
+            commands = []
+            if agent_id in self.agent_queues:
+                for cmd in self.agent_queues[agent_id]:
+                    if cmd.get("status") == "pending" and len(commands) < limit:
+                        cmd["status"] = "executing"
+                        commands.append(cmd.get("command", ""))
+            return commands
+    
+    def add_shared_instruction(self, command: str, agent_ids: List[str]):
+        """Add instruction to multiple agent queues (for distributing to new agents)"""
+        for agent_id in agent_ids:
+            self.add_instruction(agent_id, command)
+
+
+_queue_distributor_instance: Optional['QueueDistributor'] = None
+_queue_lock = asyncio.Lock()
+
+def get_queue_distributor() -> QueueDistributor:
+    """Get or create global queue distributor instance"""
+    global _queue_distributor_instance
+    if _queue_distributor_instance is None:
+        _queue_distributor_instance = QueueDistributor()
+    return _queue_distributor_instance

@@ -6,7 +6,7 @@ import { useWebSocket } from "@/hooks/use-websocket"
 
 const STORAGE_KEY = "performa_model_instructions"
 const PROCESSED_KEY = "performa_processed_commands"
-const MAX_INSTRUCTIONS = 100
+const MAX_INSTRUCTIONS = 15
 
 function generateUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -101,6 +101,28 @@ export function useModelInstructions() {
     if (lastMessage) {
       const data = lastMessage as unknown as Record<string, unknown>
       
+      if (data.type === "broadcast_event") {
+        const eventType = String(data.event_type || "info") as ModelInstruction["type"]
+        const content = String(data.content || data.instruction || "")
+        const agentId = String(data.agent_id || "system")
+        const severity = data.severity as ModelInstruction["severity"]
+        const commandKey = `${agentId}-${content}-${Date.now()}`
+        
+        if (content && !processedCommands.current.has(commandKey)) {
+          processedCommands.current.add(commandKey)
+          const newInstruction: ModelInstruction = {
+            id: generateUUID(),
+            agentId,
+            modelName: String(data.model_name || "System"),
+            instruction: content,
+            timestamp: new Date().toLocaleTimeString(),
+            type: eventType,
+            severity
+          }
+          setInstructions(prev => [newInstruction, ...prev].slice(0, MAX_INSTRUCTIONS))
+        }
+      }
+
       if (data.type === "model_instruction") {
         const newInstruction: ModelInstruction = {
           id: generateUUID(),
@@ -111,17 +133,57 @@ export function useModelInstructions() {
           type: (data.instruction_type as ModelInstruction["type"]) || "command"
         }
         
-        const commandKey = `${newInstruction.agentId}-${newInstruction.instruction}`
+        const commandKey = `${newInstruction.agentId}-${newInstruction.instruction}-${Date.now()}`
         if (!processedCommands.current.has(commandKey)) {
           processedCommands.current.add(commandKey)
           setInstructions(prev => [newInstruction, ...prev].slice(0, MAX_INSTRUCTIONS))
         }
       }
       
+      if (data.type === "agent_finding" || data.type === "finding") {
+        const findingContent = String(data.content || data.finding || "")
+        const agentId = String(data.agent_id || "unknown")
+        const severity = data.severity as ModelInstruction["severity"]
+        const commandKey = `${agentId}-finding-${Date.now()}`
+        
+        if (findingContent && !processedCommands.current.has(commandKey)) {
+          processedCommands.current.add(commandKey)
+          const newInstruction: ModelInstruction = {
+            id: generateUUID(),
+            agentId,
+            modelName: String(data.model || "Agent"),
+            instruction: findingContent,
+            timestamp: new Date().toLocaleTimeString(),
+            type: "found",
+            severity
+          }
+          setInstructions(prev => [newInstruction, ...prev].slice(0, MAX_INSTRUCTIONS))
+        }
+      }
+      
+      if (data.type === "agent_execute" || data.type === "execute") {
+        const commandContent = String(data.command || data.content || "")
+        const agentId = String(data.agent_id || "unknown")
+        const commandKey = `${agentId}-exec-${Date.now()}`
+        
+        if (commandContent && !processedCommands.current.has(commandKey)) {
+          processedCommands.current.add(commandKey)
+          const newInstruction: ModelInstruction = {
+            id: generateUUID(),
+            agentId,
+            modelName: String(data.model || "Agent"),
+            instruction: commandContent,
+            timestamp: new Date().toLocaleTimeString(),
+            type: "execute"
+          }
+          setInstructions(prev => [newInstruction, ...prev].slice(0, MAX_INSTRUCTIONS))
+        }
+      }
+
       if (data.type === "agent_command" || data.type === "command") {
         const commandContent = String(data.command || data.content || "")
         const agentId = String(data.agent_id || "unknown")
-        const commandKey = `${agentId}-${commandContent}`
+        const commandKey = `${agentId}-cmd-${Date.now()}`
         
         if (commandContent && !processedCommands.current.has(commandKey)) {
           processedCommands.current.add(commandKey)
@@ -134,51 +196,6 @@ export function useModelInstructions() {
             type: "command"
           }
           setInstructions(prev => [newInstruction, ...prev].slice(0, MAX_INSTRUCTIONS))
-        }
-      }
-
-      if (data.type === "agent_analysis" || data.type === "analysis") {
-        const analysisContent = String(data.analysis || data.content || "")
-        const agentId = String(data.agent_id || "unknown")
-        const commandKey = `${agentId}-${analysisContent}`
-        
-        if (analysisContent && !processedCommands.current.has(commandKey)) {
-          processedCommands.current.add(commandKey)
-          const newInstruction: ModelInstruction = {
-            id: generateUUID(),
-            agentId,
-            modelName: String(data.model || "AI Model"),
-            instruction: analysisContent,
-            timestamp: new Date().toLocaleTimeString(),
-            type: "analysis"
-          }
-          setInstructions(prev => [newInstruction, ...prev].slice(0, MAX_INSTRUCTIONS))
-        }
-      }
-
-      if (data.type === "agent_update" || data.type === "agent_status") {
-        const lastCommand = data.last_command as string | undefined
-        const agentId = String(data.agent_id || data.id || "unknown")
-        
-        if (lastCommand && lastCommand !== "Waiting..." && lastCommand !== "Awaiting command..." && lastCommand.trim()) {
-          const commandKey = `${agentId}-${lastCommand}`
-          if (!processedCommands.current.has(commandKey)) {
-            processedCommands.current.add(commandKey)
-            if (processedCommands.current.size > 500) {
-              const entries = Array.from(processedCommands.current)
-              processedCommands.current = new Set(entries.slice(-250))
-            }
-            
-            const newInstruction: ModelInstruction = {
-              id: generateUUID(),
-              agentId,
-              modelName: "AI Model",
-              instruction: lastCommand,
-              timestamp: new Date().toLocaleTimeString(),
-              type: "command"
-            }
-            setInstructions(prev => [newInstruction, ...prev].slice(0, MAX_INSTRUCTIONS))
-          }
         }
       }
 

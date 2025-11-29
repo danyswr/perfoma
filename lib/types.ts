@@ -87,7 +87,8 @@ export interface ModelInstruction {
   modelName: string
   instruction: string
   timestamp: string
-  type: "command" | "analysis" | "decision"
+  type: "command" | "found" | "execute" | "model_output" | "info" | "analysis" | "decision"
+  severity?: "critical" | "high" | "medium" | "low" | "info"
 }
 
 export interface Finding {

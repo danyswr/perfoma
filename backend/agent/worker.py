@@ -258,15 +258,19 @@ class AgentWorker:
             pass
     
     async def _run_autonomous_loop(self):
-        """Main autonomous execution loop with intelligent throttling and rate limiting"""
+        """Main autonomous execution loop - token efficient with command queue"""
         
         system_prompt = self._build_system_prompt()
         
         iteration = 0
         max_iterations = 50
+        pending_commands = []
         
         self.last_execute = f"Starting security analysis of {self.target}..."
         await self._broadcast_status_update()
+        
+        from agent.queue_distributor import get_queue_distributor
+        queue_dist = get_queue_distributor()
         
         while not self.stopped and iteration < max_iterations:
             while self.paused and not self.stopped:
@@ -295,6 +299,18 @@ class AgentWorker:
                 self.last_execute = f"Throttling: {throttle_result.get('reason', 'High resource usage')}"
                 await asyncio.sleep(delay)
             
+            queued_cmds = await queue_dist.get_agent_commands(self.agent_id, limit=5)
+            if queued_cmds:
+                pending_commands.extend(queued_cmds)
+                await self._broadcast_event("info", f"Picked up {len(queued_cmds)} commands from queue")
+            
+            if pending_commands:
+                cmd = pending_commands.pop(0)
+                if cmd.startswith("RUN "):
+                    await self._execute_single_command(cmd)
+                    await self._broadcast_status_update()
+                continue
+            
             iteration += 1
             if iteration >= max_iterations:
                 self.last_execute = f"Completed {iteration} analysis iterations"
@@ -302,10 +318,10 @@ class AgentWorker:
                 await self._broadcast_status_update()
                 break
             
-            self.last_execute = f"Iteration {iteration}: Analyzing target..."
+            self.last_execute = f"Iteration {iteration}: Requesting instructions..."
             await self._broadcast_status_update()
             
-            user_message = await self._build_user_message_with_collaboration(iteration)
+            user_message = self._build_user_message(iteration)
             
             try:
                 rate_limit_check = await self.rate_limiter.acquire(
@@ -374,8 +390,14 @@ class AgentWorker:
                 
                 if commands:
                     self._save_instruction_to_history(response, commands)
-                    await self._execute_commands_with_coordination(commands)
-                    await self._broadcast_status_update()
+                    cmd_list = list(commands.values())
+                    pending_commands.extend(cmd_list)
+                    await self._broadcast_event("model_output", f"Model assigned {len(cmd_list)} commands: {', '.join([c[:30] for c in cmd_list[:3]])}...")
+                    await self.logger.log_event(
+                        f"Agent {self.agent_id} queued {len(cmd_list)} commands",
+                        "command",
+                        {"commands": len(cmd_list)}
+                    )
                 
                 json_findings = self._extract_findings_from_json(response)
                 if json_findings:
@@ -393,7 +415,7 @@ class AgentWorker:
                 
                 await self._share_knowledge(response)
                 
-                await self._apply_intelligent_delay()
+                await asyncio.sleep(2.0)
                 
             except Exception as e:
                 error_str = str(e)
@@ -880,26 +902,64 @@ When done, respond with:
         
         return [m.strip() for m in matches]
     
+    async def _execute_single_command(self, command: str):
+        """Execute a single command from queue"""
+        if not command.startswith("RUN "):
+            return
+        
+        cmd = command[4:].strip()
+        
+        if is_dangerous_command(cmd):
+            self.last_execute = f"BLOCKED: Dangerous command"
+            await self._broadcast_event("info", f"BLOCKED: Dangerous command: {cmd[:50]}")
+            return
+        
+        if not is_tool_allowed(cmd):
+            tool_name = cmd.split()[0]
+            self.last_execute = f"BLOCKED: Tool '{tool_name}' not allowed"
+            await self._broadcast_event("info", f"BLOCKED: Tool '{tool_name}' not in allowed list")
+            return
+        
+        self.last_execute = cmd
+        await self._broadcast_event("execute", f"Executing: {cmd}")
+        
+        await self.logger.log_event(f"Agent {self.agent_id} executing: {cmd}", "command")
+        
+        result = await self.executor.execute(cmd)
+        
+        self.execution_history.append({
+            "command": cmd,
+            "result": result,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        result_preview = result[:100].replace('\n', ' ') if result else "No output"
+        await self._broadcast_event("info", f"Done: {cmd[:40]}... -> {result_preview}")
+        
+        await self.logger.log_event(
+            f"Agent {self.agent_id} completed: {cmd}",
+            "command",
+            {"result_length": len(result)}
+        )
+    
     async def _execute_commands(self, commands: Dict[str, str]):
         """Execute extracted commands with validation"""
         
         for key, command in commands.items():
             if command.startswith("RUN "):
-                cmd = command[4:].strip()  # Remove "RUN " prefix
+                cmd = command[4:].strip()
                 
-                # Validate command safety
                 if is_dangerous_command(cmd):
-                    self.last_execute = f"⚠️ BLOCKED: Dangerous command detected"
+                    self.last_execute = f"BLOCKED: Dangerous command detected"
                     await self.logger.log_event(
                         f"Agent {self.agent_id} blocked dangerous command: {cmd}",
                         "security_violation"
                     )
                     continue
                 
-                # Validate tool is allowed
                 if not is_tool_allowed(cmd):
                     tool_name = cmd.split()[0]
-                    self.last_execute = f"⚠️ BLOCKED: Tool '{tool_name}' not in allowed list"
+                    self.last_execute = f"BLOCKED: Tool '{tool_name}' not in allowed list"
                     await self.logger.log_event(
                         f"Agent {self.agent_id} blocked unauthorized tool: {tool_name}",
                         "security_violation"
@@ -908,20 +968,23 @@ When done, respond with:
                 
                 self.last_execute = cmd
                 
+                await self._broadcast_event("execute", f"Executing: {cmd}")
+                
                 await self.logger.log_event(
                     f"Agent {self.agent_id} executing: {cmd}",
                     "command"
                 )
                 
-                # Execute command
                 result = await self.executor.execute(cmd)
                 
-                # Store in history
                 self.execution_history.append({
                     "command": cmd,
                     "result": result,
                     "timestamp": datetime.now().isoformat()
                 })
+                
+                result_preview = result[:150].replace('\n', ' ') if result else "No output"
+                await self._broadcast_event("info", f"Completed: {cmd[:50]}... -> {result_preview}")
                 
                 await self.logger.log_event(
                     f"Agent {self.agent_id} completed: {cmd}",
@@ -933,7 +996,6 @@ When done, respond with:
         """Save findings to log and shared knowledge"""
         
         for finding in findings:
-            # Classify severity (basic keyword matching)
             severity = self._classify_severity(finding)
             
             finding_data = {
@@ -945,11 +1007,11 @@ When done, respond with:
                 "target": self.target
             }
             
-            # Add to shared knowledge
             self.shared_knowledge["findings"].append(finding_data)
             
-            # Log to file
             await self.logger.write_finding(self.agent_id, finding)
+            
+            await self._broadcast_event("found", finding, severity.lower())
             
             await self.logger.log_event(
                 f"Agent {self.agent_id} finding: {finding[:100]}...",
@@ -1117,6 +1179,26 @@ When done, respond with:
         )
         
         await self.logger.write_finding(self.agent_id, f"[{severity}] {content}")
+        
+        await self._broadcast_event("found", content, severity.lower())
+    
+    async def _broadcast_event(self, event_type: str, content: str, severity: str = None):
+        """Broadcast real-time event to WebSocket clients"""
+        try:
+            from server.ws import manager
+            
+            await manager.broadcast({
+                "type": "broadcast_event",
+                "event_type": event_type,
+                "content": content,
+                "agent_id": self.agent_id,
+                "model_name": self.model_name,
+                "severity": severity,
+                "timestamp": datetime.now().isoformat(),
+                "target": self.target
+            })
+        except Exception:
+            pass
     
     async def _broadcast_model_instruction(self, response: str):
         """Broadcast model instruction to WebSocket clients - only commands"""
@@ -1129,19 +1211,16 @@ When done, respond with:
             
             timestamp = datetime.now().isoformat()
             
-            cmd_list = list(commands.values())
-            instruction_summary = " | ".join(cmd_list[:3])
-            
-            await manager.broadcast({
-                "type": "model_instruction",
-                "agent_id": self.agent_id,
-                "model_name": self.model_name,
-                "commands": cmd_list,
-                "instruction": instruction_summary[:200],
-                "instruction_type": "command",
-                "timestamp": timestamp,
-                "target": self.target
-            })
+            for key, cmd in commands.items():
+                await manager.broadcast({
+                    "type": "broadcast_event",
+                    "event_type": "command",
+                    "content": cmd,
+                    "agent_id": self.agent_id,
+                    "model_name": self.model_name,
+                    "timestamp": timestamp,
+                    "target": self.target
+                })
         except Exception:
             pass
     
