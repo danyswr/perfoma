@@ -80,7 +80,10 @@ class IntelligentThrottler:
         self._network_baseline = self._get_network_io()
         self._cached_resources: Dict[str, float] = {}
         self._cache_time: Optional[datetime] = None
-        self._cache_ttl = 1.5
+        self._cache_ttl = 1.0
+        self._max_agent_states = 15
+        self._cleanup_interval = 30
+        self._last_cleanup: datetime = datetime.now()
     
     def _get_disk_io(self) -> float:
         """Get current disk I/O"""
@@ -220,12 +223,41 @@ class IntelligentThrottler:
         """Unregister an agent from throttling"""
         if agent_id in self.agent_states:
             del self.agent_states[agent_id]
+        if agent_id in self._callbacks:
+            del self._callbacks[agent_id]
+    
+    def _cleanup_stale_agents(self):
+        """Remove stale agent states to prevent memory growth"""
+        now = datetime.now()
+        if (now - self._last_cleanup).total_seconds() < self._cleanup_interval:
+            return
+        
+        self._last_cleanup = now
+        stale_threshold = timedelta(minutes=5)
+        stale_agents = []
+        
+        for agent_id, state in self.agent_states.items():
+            if (now - state.last_check) > stale_threshold:
+                stale_agents.append(agent_id)
+        
+        for agent_id in stale_agents:
+            self.unregister_agent(agent_id)
+        
+        if len(self.agent_states) > self._max_agent_states:
+            sorted_agents = sorted(
+                self.agent_states.items(),
+                key=lambda x: x[1].last_check
+            )
+            for agent_id, _ in sorted_agents[:len(sorted_agents) - self._max_agent_states]:
+                self.unregister_agent(agent_id)
     
     async def check_and_throttle(self, agent_id: str) -> Dict[str, Any]:
         """
         Check resources and apply throttling for an agent.
         Returns the current throttle state and recommended delay.
         """
+        self._cleanup_stale_agents()
+        
         async with self._lock:
             if agent_id not in self.agent_states:
                 self.register_agent(agent_id)
@@ -363,6 +395,9 @@ class RateLimiter:
     def __init__(self):
         self._model_state: Dict[str, Dict] = {}
         self._lock = asyncio.Lock()
+        self._max_model_states = 10
+        self._last_cleanup: datetime = datetime.now()
+        self._cleanup_interval = 60
         
         self.default_limits = {
             "requests_per_minute": 60,
@@ -393,8 +428,36 @@ class RateLimiter:
         
         return self.default_limits.copy()
     
+    def _cleanup_stale_models(self):
+        """Remove stale model states to prevent memory growth"""
+        now = datetime.now()
+        if (now - self._last_cleanup).total_seconds() < self._cleanup_interval:
+            return
+        
+        self._last_cleanup = now
+        stale_threshold = timedelta(minutes=10)
+        stale_models = []
+        
+        for model_name, state in self._model_state.items():
+            last_req = state.get("last_request")
+            if last_req and (now - last_req) > stale_threshold:
+                stale_models.append(model_name)
+        
+        for model_name in stale_models:
+            del self._model_state[model_name]
+        
+        if len(self._model_state) > self._max_model_states:
+            sorted_models = sorted(
+                self._model_state.items(),
+                key=lambda x: x[1].get("last_request") or datetime.min
+            )
+            for model_name, _ in sorted_models[:len(sorted_models) - self._max_model_states]:
+                del self._model_state[model_name]
+    
     def _get_state(self, model_name: str) -> Dict:
         """Get or create state for a model"""
+        self._cleanup_stale_models()
+        
         if model_name not in self._model_state:
             self._model_state[model_name] = {
                 "requests_this_minute": 0,

@@ -13,6 +13,8 @@ class SharedInstructionQueue:
         self.instruction_counter = 0
         self.executed_instructions: List[Dict[str, Any]] = []
         self._listeners: List[asyncio.Queue] = []
+        self._max_executed_history = 25
+        self._max_instructions = 50
     
     def add_listener(self) -> asyncio.Queue:
         """Add a listener for queue updates"""
@@ -25,6 +27,21 @@ class SharedInstructionQueue:
         if queue in self._listeners:
             self._listeners.remove(queue)
     
+    def _trim_executed_history(self):
+        """Trim executed instructions to prevent memory growth"""
+        if len(self.executed_instructions) > self._max_executed_history:
+            excess = len(self.executed_instructions) - self._max_executed_history
+            del self.executed_instructions[:excess]
+    
+    def _trim_instructions(self):
+        """Trim pending instructions if queue is too long"""
+        pending = [i for i in self.instructions if i["status"] == "pending"]
+        if len(pending) > self._max_instructions:
+            excess = len(pending) - self._max_instructions
+            to_remove = pending[:excess]
+            for item in to_remove:
+                self.instructions.remove(item)
+    
     def _get_queue_state_unlocked(self) -> Dict[str, Any]:
         """Get current queue state without acquiring lock (internal use only)"""
         pending = [i for i in self.instructions if i["status"] == "pending"]
@@ -35,7 +52,7 @@ class SharedInstructionQueue:
             "total_pending": len(pending),
             "total_executing": len(executing),
             "total_completed": len(self.executed_instructions),
-            "recent_completed": self.executed_instructions[-10:]
+            "recent_completed": self.executed_instructions[-8:]
         }
     
     def _notify_listeners_sync(self, queue_state: Dict[str, Any]):
@@ -64,6 +81,7 @@ class SharedInstructionQueue:
                         "completed_at": None
                     })
                     added += 1
+            self._trim_instructions()
             queue_state = self._get_queue_state_unlocked()
         if queue_state:
             self._notify_listeners_sync(queue_state)
@@ -117,9 +135,10 @@ class SharedInstructionQueue:
                 if instruction["id"] == instruction_id and instruction["claimed_by"] == agent_id:
                     instruction["status"] = "completed"
                     instruction["completed_at"] = datetime.now().isoformat()
-                    instruction["result"] = result
+                    instruction["result"] = result[:500] if result else ""
                     self.executed_instructions.append(instruction.copy())
                     self.instructions.remove(instruction)
+                    self._trim_executed_history()
                     success = True
                     queue_state = self._get_queue_state_unlocked()
                     break

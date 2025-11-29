@@ -73,6 +73,10 @@ class InterAgentCommunication:
         self._shared_discoveries: Dict[str, Any] = {}
         self._completed_tasks: set = set()
         self._in_progress_tasks: Dict[str, str] = {}
+        
+        self._max_messages_per_agent = 20
+        self._max_discoveries = 100
+        self._max_completed_tasks = 50
     
     def _generate_message_id(self) -> str:
         """Generate unique message ID"""
@@ -105,6 +109,29 @@ class InterAgentCommunication:
                     if hasattr(cap, key):
                         setattr(cap, key, value)
     
+    def _trim_queue(self, agent_id: str):
+        """Trim message queue for an agent to prevent memory growth"""
+        if agent_id in self._message_queue:
+            queue = self._message_queue[agent_id]
+            if len(queue) > self._max_messages_per_agent:
+                excess = len(queue) - self._max_messages_per_agent
+                del queue[:excess]
+    
+    def _trim_discoveries(self):
+        """Trim discoveries to prevent memory growth"""
+        if len(self._shared_discoveries) > self._max_discoveries:
+            keys = list(self._shared_discoveries.keys())
+            for key in keys[:len(keys) - self._max_discoveries]:
+                del self._shared_discoveries[key]
+    
+    def _trim_completed_tasks(self):
+        """Trim completed tasks set"""
+        if len(self._completed_tasks) > self._max_completed_tasks:
+            excess = len(self._completed_tasks) - self._max_completed_tasks
+            tasks_list = list(self._completed_tasks)
+            for task in tasks_list[:excess]:
+                self._completed_tasks.discard(task)
+    
     async def send_message(self, message: AgentMessage) -> bool:
         """Send a message to a specific agent or broadcast"""
         async with self._lock:
@@ -113,6 +140,7 @@ class InterAgentCommunication:
             if message.to_agent:
                 if message.to_agent in self._message_queue:
                     self._message_queue[message.to_agent].append(message)
+                    self._trim_queue(message.to_agent)
                     
                     if message.to_agent in self._message_handlers:
                         try:
@@ -127,6 +155,7 @@ class InterAgentCommunication:
                     if agent_id != message.from_agent:
                         if message.message_type in self._subscriptions.get(agent_id, []):
                             queue.append(message)
+                            self._trim_queue(agent_id)
                             
                             if agent_id in self._message_handlers:
                                 try:
@@ -210,6 +239,7 @@ class InterAgentCommunication:
                 "data": data,
                 "timestamp": datetime.now().isoformat()
             }
+            self._trim_discoveries()
         
         if broadcast:
             message = AgentMessage(
@@ -324,6 +354,7 @@ class InterAgentCommunication:
             if task_identifier in self._in_progress_tasks:
                 del self._in_progress_tasks[task_identifier]
             self._completed_tasks.add(task_identifier)
+            self._trim_completed_tasks()
         
         message = AgentMessage(
             id="",

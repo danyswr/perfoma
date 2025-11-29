@@ -97,11 +97,12 @@ class AgentWorker:
         self._last_cpu_usage: Optional[float] = None
         self._last_memory_usage: Optional[int] = None
         
-        self._max_context_history = 6
-        self._max_execution_history = 15
-        self._max_instruction_history = 10
+        self._max_context_history = 4
+        self._max_execution_history = 8
+        self._max_instruction_history = 6
         self._gc_counter = 0
-        self._gc_interval = 5
+        self._gc_interval = 3
+        self._lazy_init_done = False
         
         self.memory: AgentMemory = get_memory()
         throttler, rate_limiter, agent_comm, knowledge_base = _get_shared_instances()
@@ -126,18 +127,29 @@ class AgentWorker:
         """Trim in-memory lists to prevent memory buildup - keeps agent lightweight"""
         import gc
         
-        if len(self.context_history) > self._max_context_history * 2:
-            self.context_history = self.context_history[-self._max_context_history:]
+        if len(self.context_history) > self._max_context_history:
+            excess = len(self.context_history) - self._max_context_history
+            del self.context_history[:excess]
         
         if len(self.execution_history) > self._max_execution_history:
-            self.execution_history = self.execution_history[-self._max_execution_history:]
+            excess = len(self.execution_history) - self._max_execution_history
+            del self.execution_history[:excess]
         
         if len(self.instruction_history) > self._max_instruction_history:
-            self.instruction_history = self.instruction_history[-self._max_instruction_history:]
+            excess = len(self.instruction_history) - self._max_instruction_history
+            del self.instruction_history[:excess]
+        
+        for item in self.context_history:
+            if isinstance(item.get("content"), str) and len(item["content"]) > 1500:
+                item["content"] = item["content"][:1500] + "..."
+        
+        for item in self.execution_history:
+            if isinstance(item.get("result"), str) and len(item["result"]) > 800:
+                item["result"] = item["result"][:800] + "..."
         
         self._gc_counter += 1
         if self._gc_counter >= self._gc_interval:
-            gc.collect()
+            gc.collect(generation=0)
             self._gc_counter = 0
     
     def _cleanup_on_complete(self):
