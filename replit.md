@@ -4,6 +4,26 @@
 A sophisticated Next.js frontend with Python FastAPI backend system for autonomous cybersecurity operations. The system features multi-agent AI capabilities for security assessments, real-time monitoring, and automated threat detection.
 
 ## Recent Changes
+- **2024-11-29**: Memory Optimization & Performance Improvements ✅
+  - ✅ OPTIMIZED: Agent memory consumption with bounded history limits
+    - context_history: limited to 6 items (was unbounded)
+    - execution_history: limited to 15 items
+    - instruction_history: limited to 10 items
+  - ✅ ADDED: Automatic memory trimming with garbage collection
+    - GC runs every 5 iterations to free unused memory
+    - Content truncation: role 2000 chars, assistant 3000 chars
+  - ✅ IMPROVED: WebSocket broadcasts use fresh resource metrics
+    - Real-time CPU/memory readings on each broadcast
+    - Optimized progress calculation (len * 7 + 5)
+  - ✅ FIXED: Agent cleanup runs after loop completes (not in finally block)
+    - Prevents cleanup during active execution
+    - Proper throttler unregistration after agent finishes
+  - ✅ OPTIMIZED: SQLite database performance
+    - WAL mode enabled for better concurrency
+    - synchronous=NORMAL, cache_size=-8000, temp_store=MEMORY
+  - ✅ REDUCED: Throttler cache TTL from 2.0s to 1.5s
+  - STATUS: System now runs more efficiently with bounded memory growth
+
 - **2024-11-29**: UI Improvements & Ollama Support ✅
   - ✅ ADDED: Ollama local model support in AI provider list
     - New _generate_ollama() function in models/router.py
