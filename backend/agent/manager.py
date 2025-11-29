@@ -248,6 +248,57 @@ class AgentManager:
         
         return True
     
+    async def stop_all_agents(self) -> Dict:
+        """Stop all agents immediately and generate final reports"""
+        self.operation_active = False
+        stopped_count = 0
+        
+        await self.logger.log_event(
+            "Stopping all agents",
+            "system",
+            {"num_agents": len(self.agents)}
+        )
+        
+        targets_set = set()
+        
+        for agent_id, agent in self.agents.items():
+            try:
+                targets_set.add(agent.target)
+                await agent.stop()
+                stopped_count += 1
+                await self.logger.log_event(
+                    f"Agent {agent_id} stopped",
+                    "system"
+                )
+            except Exception as e:
+                await self.logger.log_event(
+                    f"Error stopping agent {agent_id}: {str(e)}",
+                    "error"
+                )
+        
+        await asyncio.sleep(0.5)
+        
+        await self.logger.log_event(
+            f"All agents stopped ({stopped_count}/{len(self.agents)})",
+            "system"
+        )
+        
+        for target in targets_set:
+            try:
+                await self.generate_report(target=target)
+            except Exception as e:
+                await self.logger.log_event(
+                    f"Error generating report for {target}: {str(e)}",
+                    "error"
+                )
+        
+        return {
+            "status": "stopped",
+            "agents_stopped": stopped_count,
+            "total_agents": len(self.agents),
+            "reports_generated_for": list(targets_set)
+        }
+    
     async def get_agent_instruction_history(self, agent_id: str) -> List[Dict]:
         """Get instruction history for a specific agent"""
         if agent_id not in self.agents:

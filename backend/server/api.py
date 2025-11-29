@@ -258,6 +258,15 @@ async def test_model(data: ModelTestInput):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.post("/stop")
+async def stop_all_operations():
+    """Stop all running agents and generate final reports"""
+    try:
+        result = await agent_manager.stop_all_agents()
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 class ExploitInput(BaseModel):
     target: str
     stealth_mode: bool = False
