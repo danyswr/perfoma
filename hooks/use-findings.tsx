@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { api, type FindingResponse } from "@/lib/api"
 import type { Finding } from "@/lib/types"
+import { useWebSocket } from "./use-websocket"
 
 function transformFinding(f: FindingResponse): Finding {
   return {
@@ -28,6 +29,7 @@ export function useFindings() {
   })
   const [loading, setLoading] = useState(false)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const { lastMessage } = useWebSocket()
 
   const fetchFindings = useCallback(async () => {
     try {
@@ -37,15 +39,33 @@ export function useFindings() {
         setSeveritySummary(response.data.severity_summary)
       }
     } catch {
-      // Silent fail
     }
   }, [])
+
+  useEffect(() => {
+    if (!lastMessage) return
+    
+    if (lastMessage.type === "finding_update" && lastMessage.finding) {
+      const newFinding = transformFinding(lastMessage.finding as FindingResponse)
+      setFindings((prev) => {
+        const exists = prev.some((f) => f.id === newFinding.id)
+        if (exists) return prev
+        return [newFinding, ...prev]
+      })
+      
+      const severity = newFinding.severity as keyof typeof severitySummary
+      setSeveritySummary((prev) => ({
+        ...prev,
+        [severity]: (prev[severity] || 0) + 1,
+      }))
+    }
+  }, [lastMessage])
 
   useEffect(() => {
     setLoading(true)
     fetchFindings().finally(() => setLoading(false))
 
-    intervalRef.current = setInterval(fetchFindings, 5000)
+    intervalRef.current = setInterval(fetchFindings, 10000)
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
