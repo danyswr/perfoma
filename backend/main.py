@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from server.api import router as api_router
 from server.ws import router as ws_router
 from server.tools_api import router as tools_router
+from server.findings_api import router as findings_router, start_findings_watcher
 from server.config import settings
 from monitor.log import setup_logging
 import os
@@ -34,6 +35,7 @@ app.add_middleware(
 # Include routers
 app.include_router(api_router, prefix="/api", tags=["api"])
 app.include_router(tools_router, prefix="/api", tags=["tools"])
+app.include_router(findings_router, prefix="/api/findings", tags=["findings"])
 app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 
 @app.on_event("startup")
@@ -44,6 +46,7 @@ async def startup_event():
     print(f"🔑 OpenRouter API Key: {'✓ Configured' if settings.OPENROUTER_API_KEY else '✗ Missing'}")
     print(f"🔑 Anthropic API Key: {'✓ Optional' if settings.ANTHROPIC_API_KEY else '✗ Not configured'}")
     print(f"🔑 OpenAI API Key: {'✓ Optional' if settings.OPENAI_API_KEY else '✗ Not configured'}")
+    start_findings_watcher()
 
 @app.on_event("shutdown")
 async def shutdown_event():

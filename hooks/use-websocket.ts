@@ -37,6 +37,8 @@ export interface WebSocketMessage {
     | "model_instruction"
     | "history_update"
     | "mission_update"
+    | "findings_explorer_update"
+    | "finding_update"
     | "error"
   message?: string
   mode?: string
@@ -59,6 +61,8 @@ export interface WebSocketMessage {
   instruction_type?: string
   added?: number
   timestamp?: string
+  data?: any
+  finding?: any
 }
 
 export interface QueueItem {

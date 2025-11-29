@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useWebSocket } from "./use-websocket"
 import type { ChatMessage } from "@/lib/types"
 import { formatTime } from "@/lib/utils"
@@ -8,11 +8,13 @@ import { formatTime } from "@/lib/utils"
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [mode, setMode] = useState<"chat" | "queue">("chat")
-  const { connected, connecting, connectionError, sendCommand, sendChat, onMessage, lastMessage, reconnect } = useWebSocket()
+  const [sendingMessage, setSendingMessage] = useState(false)
+  const messageQueue = useRef<string[]>([])
+  const { connected, connecting, connectionError, sendCommand, sendChat, lastMessage, reconnect } = useWebSocket()
 
-  const addMessage = useCallback((role: "user" | "assistant" | "system", content: string) => {
+  const addMessage = useCallback((role: "user" | "assistant" | "system", content: string, isTemporary = false) => {
     const message: ChatMessage = {
-      id: Date.now().toString(),
+      id: isTemporary ? `temp-${Date.now()}` : Date.now().toString(),
       role,
       content,
       timestamp: formatTime(new Date()),
@@ -36,8 +38,8 @@ export function useChat() {
         addMessage("assistant", lastMessage.message || "")
         break
       case "queue_list":
-        if (lastMessage.queue && lastMessage.queue.length > 0) {
-          const queueStr = lastMessage.queue.map((item) => `${item.index}. ${item.command}`).join("\n")
+        if (lastMessage.queue && Array.isArray(lastMessage.queue) && lastMessage.queue.length > 0) {
+          const queueStr = (lastMessage.queue as Array<{index: number; command: string}>).map((item) => `${item.index}. ${item.command}`).join("\n")
           addMessage("system", `Queue (${lastMessage.total} items):\n${queueStr}`)
         } else {
           addMessage("system", "Queue is empty")
@@ -60,35 +62,60 @@ export function useChat() {
 
   const sendMessage = useCallback(
     (content: string, currentMode: "chat" | "queue") => {
-      addMessage("user", content)
-
-      if (currentMode === "chat") {
-        sendChat(content)
-      } else {
-        // For queue mode, treat as command execution
-        sendCommand(content)
+      if (!connected) {
+        addMessage("system", "Not connected to server. Click 'Offline' badge to reconnect.")
+        return
       }
+      
+      addMessage("user", content)
+      setSendingMessage(true)
+
+      let success = false
+      if (currentMode === "chat") {
+        success = sendChat(content)
+      } else {
+        success = sendCommand(content)
+      }
+      
+      if (!success) {
+        addMessage("system", "Failed to send message. Please try again.")
+      }
+      
+      setTimeout(() => setSendingMessage(false), 500)
     },
-    [addMessage, sendChat, sendCommand],
+    [addMessage, sendChat, sendCommand, connected],
   )
 
   const sendQueueCommand = useCallback(
     (command: string) => {
+      if (!connected) {
+        addMessage("system", "Not connected to server. Click 'Offline' badge to reconnect.")
+        return
+      }
       addMessage("user", command)
-      sendCommand(command)
+      const success = sendCommand(command)
+      if (!success) {
+        addMessage("system", "Failed to send command. Please try again.")
+      }
     },
-    [addMessage, sendCommand],
+    [addMessage, sendCommand, connected],
   )
+
+  const clearMessages = useCallback(() => {
+    setMessages([])
+  }, [])
 
   return {
     messages,
     sendMessage,
     sendQueueCommand,
+    clearMessages,
     mode,
     setMode,
     connected,
     connecting,
     connectionError,
     reconnect,
+    sendingMessage,
   }
 }

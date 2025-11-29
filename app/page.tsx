@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -14,18 +14,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import {
   Bot, Play, Shield, Zap, Target,
   Globe, FolderOpen, MessageSquare, X, Download, FileJson, FileText, FileSpreadsheet,
   ChevronRight, AlertTriangle, Settings, Terminal, Clock,
   MoreVertical, Pause, Trash2, ExternalLink, Check, Network, Eye, EyeOff,
   RefreshCw, Send, User, ListOrdered, PanelLeft, Monitor, Brain, Timer,
-  Cpu, MemoryStick, Activity, FileDown
+  Cpu, MemoryStick, Activity, FileDown, Wrench, Plus, GripVertical
 } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
 import { ResourceMonitor } from "@/components/dashboard/resource-monitor"
 import { MissionTimer } from "@/components/dashboard/mission-timer"
 import { ModelInstructions } from "@/components/dashboard/model-instructions"
+import { FindingsExplorer } from "@/components/dashboard/findings-explorer"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useMission } from "@/hooks/use-mission"
 import { useAgents } from "@/hooks/use-agents"
@@ -64,6 +66,8 @@ export default function Dashboard() {
   const [testingApi, setTestingApi] = useState(false)
   const [apiTestResult, setApiTestResult] = useState<{success: boolean, message: string} | null>(null)
   const [apiTestPassed, setApiTestPassed] = useState(false)
+  const [requestedTools, setRequestedTools] = useState<string[]>([])
+  const [toolInput, setToolInput] = useState("")
 
   useEffect(() => {
     let isMounted = true
@@ -313,57 +317,9 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card className="w-80 flex flex-col overflow-hidden shrink-0">
-              <CardHeader className="py-3 px-4 shrink-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-5 h-5 text-primary" />
-                    <CardTitle className="text-base">Findings</CardTitle>
-                    <Badge variant="secondary">{findings.length}</Badge>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="h-7">
-                        <Download className="w-3 h-3 mr-1" />
-                        Export
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={exportFindings}>
-                        <FileJson className="w-4 h-4 mr-2" />JSON
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={exportCsv}>
-                        <FileSpreadsheet className="w-4 h-4 mr-2" />CSV
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={exportPdf}>
-                        <FileDown className="w-4 h-4 mr-2" />PDF Report
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <div className="flex gap-1 mt-2 flex-wrap">
-                  <Badge className="bg-red-500/20 text-red-500 text-xs">Critical: {severitySummary.critical}</Badge>
-                  <Badge className="bg-orange-500/20 text-orange-500 text-xs">High: {severitySummary.high}</Badge>
-                  <Badge className="bg-yellow-500/20 text-yellow-500 text-xs">Medium: {severitySummary.medium}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-hidden p-2">
-                <ScrollArea className="h-full">
-                  <div className="space-y-2 p-2">
-                    {findings.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                        <p className="text-xs">No findings yet</p>
-                      </div>
-                    ) : (
-                      findings.map((finding, index) => (
-                        <FindingCard key={finding.id || `finding-${index}`} finding={finding} />
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
+            <div className="w-96 shrink-0">
+              <FindingsExplorer />
+            </div>
           </div>
         </div>
 
@@ -374,9 +330,10 @@ export default function Dashboard() {
               <h2 className="font-semibold">Mission Config</h2>
             </div>
             <Tabs value={configTab} onValueChange={setConfigTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4 h-8">
+              <TabsList className="grid w-full grid-cols-5 h-8">
                 <TabsTrigger value="target" className="text-xs">Target</TabsTrigger>
                 <TabsTrigger value="mode" className="text-xs">Mode</TabsTrigger>
+                <TabsTrigger value="tools" className="text-xs">Tools</TabsTrigger>
                 <TabsTrigger value="stealth" className="text-xs">Stealth</TabsTrigger>
                 <TabsTrigger value="caps" className="text-xs">Caps</TabsTrigger>
               </TabsList>
@@ -576,6 +533,124 @@ export default function Dashboard() {
                     </p>
                   </div>
                 </>
+              )}
+
+              {configTab === "tools" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-primary" />
+                      Priority Tools Request
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Specify tools that the AI agent should prioritize. Enter tool names one by one and press Enter or click Add.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g., nmap, sqlmap, nikto..."
+                      value={toolInput}
+                      onChange={(e) => setToolInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && toolInput.trim()) {
+                          e.preventDefault()
+                          if (!requestedTools.includes(toolInput.trim().toLowerCase())) {
+                            setRequestedTools([...requestedTools, toolInput.trim().toLowerCase()])
+                          }
+                          setToolInput("")
+                        }
+                      }}
+                      className="h-9 flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      className="h-9"
+                      onClick={() => {
+                        if (toolInput.trim() && !requestedTools.includes(toolInput.trim().toLowerCase())) {
+                          setRequestedTools([...requestedTools, toolInput.trim().toLowerCase()])
+                          setToolInput("")
+                        }
+                      }}
+                      disabled={!toolInput.trim()}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+
+                  {requestedTools.length > 0 ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Priority Tools ({requestedTools.length})</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs text-destructive hover:text-destructive"
+                          onClick={() => setRequestedTools([])}
+                        >
+                          Clear All
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {requestedTools.map((tool, index) => (
+                          <div
+                            key={tool}
+                            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary/10 border border-primary/20 group"
+                          >
+                            <Badge variant="secondary" className="text-[10px] h-4 px-1">{index + 1}</Badge>
+                            <Wrench className="w-3 h-3 text-primary" />
+                            <span className="text-xs font-medium">{tool}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-4 w-4 opacity-60 hover:opacity-100 hover:bg-destructive/20"
+                              onClick={() => setRequestedTools(requestedTools.filter(t => t !== tool))}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 border border-dashed border-border rounded-lg">
+                      <Wrench className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-30" />
+                      <p className="text-xs text-muted-foreground">No tools requested yet</p>
+                      <p className="text-[10px] text-muted-foreground">Agent will use default toolset</p>
+                    </div>
+                  )}
+
+                  <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                    <p className="text-[10px] text-muted-foreground">
+                      <strong>Note:</strong> Priority tools will be preferred by the AI agent during scanning. 
+                      Other tools may still be used if required for the operation (e.g., reconnaissance tools for info gathering).
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-xs font-medium">Common Security Tools</Label>
+                    <div className="flex flex-wrap gap-1">
+                      {["nmap", "sqlmap", "nikto", "dirb", "gobuster", "wfuzz", "hydra", "ffuf", "nuclei", "subfinder"].map(tool => (
+                        <Button
+                          key={tool}
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px]"
+                          onClick={() => {
+                            if (!requestedTools.includes(tool)) {
+                              setRequestedTools([...requestedTools, tool])
+                            }
+                          }}
+                          disabled={requestedTools.includes(tool)}
+                        >
+                          {requestedTools.includes(tool) ? <Check className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+                          {tool}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
 
               {configTab === "stealth" && (
@@ -1103,8 +1178,40 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
   const [input, setInput] = useState("")
   const [sidebarTab, setSidebarTab] = useState<"chat" | "queue" | "history">("chat")
   const [queueState, setQueueState] = useState<{pending: any[], executing: any[], total_pending: number, total_executing: number}>({pending: [], executing: [], total_pending: 0, total_executing: 0})
-  const { messages, sendMessage, sendQueueCommand, mode, setMode, connected } = useChat()
+  const [sidebarWidth, setSidebarWidth] = useState(320)
+  const [isResizing, setIsResizing] = useState(false)
+  const sidebarRef = useRef<HTMLDivElement>(null)
+  const { messages, sendMessage, sendQueueCommand, mode, setMode, connected, connecting, connectionError, reconnect } = useChat()
   const { lastMessage } = useWebSocket()
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return
+      const newWidth = e.clientX
+      if (newWidth >= 280 && newWidth <= 500) {
+        setSidebarWidth(newWidth)
+      }
+    }
+
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing])
 
   useEffect(() => {
     if (lastMessage?.type === "queue_update" && lastMessage.queue) {
@@ -1135,7 +1242,11 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
   }
 
   return (
-    <div className={`h-full border-r border-border flex flex-col transition-all duration-300 ${open ? "w-80 min-w-[320px] max-w-[380px]" : "w-12"}`}>
+    <div 
+      ref={sidebarRef}
+      className={`h-full border-r border-border flex flex-col relative ${open ? "" : "w-12"}`}
+      style={open ? { width: `${sidebarWidth}px`, minWidth: '280px', maxWidth: '500px' } : {}}
+    >
       <div className="p-2 border-b border-border flex items-center justify-between shrink-0">
         <Button 
           variant="ghost" 
@@ -1150,14 +1261,33 @@ function ChatSidebar({ open, onToggle }: { open: boolean; onToggle: () => void }
             <span className="font-semibold text-sm truncate">
               {sidebarTab === "history" ? "History" : sidebarTab === "queue" ? "Queue" : "Chat"}
             </span>
-            {connected ? (
+            {connecting ? (
+              <Badge variant="secondary" className="text-xs shrink-0 animate-pulse">Connecting...</Badge>
+            ) : connected ? (
               <Badge variant="default" className="text-xs shrink-0">Online</Badge>
             ) : (
-              <Badge variant="destructive" className="text-xs shrink-0">Offline</Badge>
+              <Badge 
+                variant="destructive" 
+                className="text-xs shrink-0 cursor-pointer hover:bg-destructive/80"
+                onClick={reconnect}
+                title="Click to reconnect"
+              >
+                Offline
+              </Badge>
             )}
           </div>
         )}
       </div>
+      {open && (
+        <div
+          className={`absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-primary/20 transition-colors z-10 ${isResizing ? 'bg-primary/30' : ''}`}
+          onMouseDown={handleMouseDown}
+        >
+          <div className="absolute top-1/2 -translate-y-1/2 right-0 w-1.5 h-8 flex items-center justify-center">
+            <GripVertical className="w-3 h-3 text-muted-foreground" />
+          </div>
+        </div>
+      )}
 
       {open ? (
         <>

@@ -239,6 +239,42 @@ export const api = {
       return { error: "Cannot stop mission" }
     }
   },
+
+  async getFindingsExplorer() {
+    try {
+      const res = await fetch(`${API_BASE}/api/findings/explorer`)
+      return handleResponse<FindingsExplorerResponse>(res)
+    } catch {
+      return { error: "Cannot fetch findings explorer", data: { folders: [], root_files: [], total_files: 0, last_updated: new Date().toISOString() } }
+    }
+  },
+
+  async getFileContent(filePath: string) {
+    try {
+      const res = await fetch(`${API_BASE}/api/findings/file/${encodeURIComponent(filePath)}`)
+      return handleResponse<FileContentResponse>(res)
+    } catch {
+      return { error: "Cannot fetch file content" }
+    }
+  },
+
+  async getAgentLogs() {
+    try {
+      const res = await fetch(`${API_BASE}/api/findings/logs`)
+      return handleResponse<{ logs: FileInfo[]; total: number }>(res)
+    } catch {
+      return { error: "Cannot fetch logs", data: { logs: [], total: 0 } }
+    }
+  },
+
+  async getLogContent(fileName: string, tail: number = 500) {
+    try {
+      const res = await fetch(`${API_BASE}/api/findings/logs/${encodeURIComponent(fileName)}?tail=${tail}`)
+      return handleResponse<{ filename: string; content: string; total_lines: number }>(res)
+    } catch {
+      return { error: "Cannot fetch log content" }
+    }
+  },
 }
 
 export interface AgentResponse {
@@ -307,4 +343,33 @@ export interface InstructionHistory {
   timestamp: string
   model_name: string
   agent_id?: string
+}
+
+export interface FileInfo {
+  name: string
+  path: string
+  type: string
+  size: number
+  modified: string
+  target?: string
+}
+
+export interface FolderInfo {
+  name: string
+  path: string
+  files: FileInfo[]
+  file_count: number
+}
+
+export interface FindingsExplorerResponse {
+  folders: FolderInfo[]
+  root_files: FileInfo[]
+  total_files: number
+  last_updated: string
+}
+
+export interface FileContentResponse {
+  type: string
+  content: any
+  filename: string
 }
