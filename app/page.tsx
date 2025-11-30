@@ -40,7 +40,7 @@ import type { MissionConfig, Agent, Finding, StealthOptions, CapabilityOptions }
 import { OPENROUTER_MODELS, DEFAULT_STEALTH_OPTIONS, DEFAULT_CAPABILITY_OPTIONS } from "@/lib/types"
 
 import { toast } from "sonner"
-import { Save } from "lucide-react"
+import { Save, RotateCcw } from "lucide-react"
 
 function SaveSessionButton() {
   const [saving, setSaving] = useState(false)
@@ -83,6 +83,102 @@ function SaveSessionButton() {
       )}
       {saved ? 'Saved' : 'Save'}
     </Button>
+  )
+}
+
+function RestoreSessionButton() {
+  const [showSessions, setShowSessions] = useState(false)
+  const [sessions, setSessions] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [resuming, setResuming] = useState<string | null>(null)
+
+  const loadSessions = async () => {
+    setLoading(true)
+    try {
+      const response = await api.getSessions()
+      if (response.data) {
+        setSessions(response.data.sessions)
+      }
+    } catch {
+      toast.error("Failed to load sessions")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRestore = async (sessionId: string) => {
+    setResuming(sessionId)
+    try {
+      const response = await api.resumeSession(sessionId)
+      if (response.data) {
+        toast.success("Session restored!", {
+          description: `${response.data.agent_ids.length} agents resumed`
+        })
+        setShowSessions(false)
+      } else if (response.error) {
+        toast.error("Restore failed", { description: response.error })
+      }
+    } catch {
+      toast.error("Failed to restore session")
+    } finally {
+      setResuming(null)
+    }
+  }
+
+  return (
+    <>
+      <Button 
+        variant="outline"
+        size="sm" 
+        onClick={() => {
+          setShowSessions(true)
+          loadSessions()
+        }}
+        className="gap-1.5"
+      >
+        <RotateCcw className="w-3.5 h-3.5" />
+        Restore
+      </Button>
+
+      <Dialog open={showSessions} onOpenChange={setShowSessions}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Restore Saved Session</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {loading ? (
+              <div className="flex justify-center py-4">
+                <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : sessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No saved sessions</p>
+            ) : (
+              <ScrollArea className="h-64">
+                <div className="space-y-2 p-4">
+                  {sessions.map(session => (
+                    <div key={session.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{session.target}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(session.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleRestore(session.id)}
+                        disabled={resuming === session.id}
+                      >
+                        {resuming === session.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Resume'}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 
@@ -269,7 +365,7 @@ export default function Dashboard() {
           <Badge variant={backendStatus === "online" ? "default" : backendStatus === "offline" ? "destructive" : "secondary"}>
             {backendStatus === "online" ? "Online" : backendStatus === "offline" ? "Offline" : "Connecting..."}
           </Badge>
-          {mission.active && (
+          {mission.active ? (
             <>
               <MissionTimer 
                 active={mission.active} 
@@ -282,6 +378,8 @@ export default function Dashboard() {
                 Stop Mission
               </Button>
             </>
+          ) : (
+            <RestoreSessionButton />
           )}
         </div>
       </header>
