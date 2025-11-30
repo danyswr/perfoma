@@ -45,8 +45,11 @@ import { Save, RotateCcw } from "lucide-react"
 function SaveSessionButton() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  
+  const { mission } = useMission()
 
   const handleSave = async () => {
+    if (!mission.active) return
     setSaving(true)
     try {
       const response = await api.saveSession()
@@ -71,7 +74,7 @@ function SaveSessionButton() {
       variant={saved ? "default" : "outline"}
       size="sm" 
       onClick={handleSave}
-      disabled={saving}
+      disabled={saving || !mission.active}
       className={`gap-1.5 ${saved ? 'bg-green-600 hover:bg-green-700' : ''}`}
     >
       {saving ? (
@@ -365,21 +368,20 @@ export default function Dashboard() {
           <Badge variant={backendStatus === "online" ? "default" : backendStatus === "offline" ? "destructive" : "secondary"}>
             {backendStatus === "online" ? "Online" : backendStatus === "offline" ? "Offline" : "Connecting..."}
           </Badge>
-          {mission.active ? (
-            <>
-              <MissionTimer 
-                active={mission.active} 
-                startTime={mission.startTime} 
-                duration={mission.duration}
-                maxDuration={mission.maxDuration}
-              />
-              <SaveSessionButton />
-              <Button variant="destructive" size="sm" onClick={stopMission}>
-                Stop Mission
-              </Button>
-            </>
-          ) : (
-            <RestoreSessionButton />
+          {mission.active && (
+            <MissionTimer 
+              active={mission.active} 
+              startTime={mission.startTime} 
+              duration={mission.duration}
+              maxDuration={mission.maxDuration}
+            />
+          )}
+          <SaveSessionButton />
+          <RestoreSessionButton />
+          {mission.active && (
+            <Button variant="destructive" size="sm" onClick={stopMission}>
+              Stop Mission
+            </Button>
           )}
         </div>
       </header>

@@ -123,6 +123,7 @@ export function ConfigSidebar({ open, onOpenChange, onStartMission, missionActiv
     allowedToolsOnly: false,
   })
   const [customDurationMinutes, setCustomDurationMinutes] = useState(30)
+  const [customDurationInput, setCustomDurationInput] = useState("30")
   const [customModelId, setCustomModelId] = useState("")
   const [testingModel, setTestingModel] = useState(false)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
