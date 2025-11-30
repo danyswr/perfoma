@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Timer } from "lucide-react"
 
@@ -8,16 +8,35 @@ interface MissionTimerProps {
   active: boolean
   startTime?: number
   duration: number
+  maxDuration?: number | null
 }
 
-export function MissionTimer({ active, startTime, duration }: MissionTimerProps) {
+export function MissionTimer({ active, startTime, duration, maxDuration }: MissionTimerProps) {
   const [elapsed, setElapsed] = useState(duration)
   const fallbackStartRef = useRef<number | null>(null)
+  const rafRef = useRef<number | null>(null)
+  const lastUpdateRef = useRef<number>(0)
+
+  const updateTimer = useCallback(() => {
+    const effectiveStartTime = startTime || fallbackStartRef.current
+    
+    if (effectiveStartTime) {
+      const now = Date.now()
+      const diff = Math.floor((now - effectiveStartTime) / 1000)
+      setElapsed(Math.max(0, diff))
+    } else {
+      setElapsed(prev => prev + 1)
+    }
+  }, [startTime])
 
   useEffect(() => {
     if (!active) {
       setElapsed(0)
       fallbackStartRef.current = null
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
       return
     }
 
@@ -25,20 +44,24 @@ export function MissionTimer({ active, startTime, duration }: MissionTimerProps)
       fallbackStartRef.current = Date.now() - (duration * 1000)
     }
 
-    const effectiveStartTime = startTime || fallbackStartRef.current
-
-    const interval = setInterval(() => {
-      if (effectiveStartTime) {
-        const now = Date.now()
-        const diff = Math.floor((now - effectiveStartTime) / 1000)
-        setElapsed(Math.max(0, diff))
-      } else {
-        setElapsed(prev => prev + 1)
+    const tick = (timestamp: number) => {
+      if (timestamp - lastUpdateRef.current >= 1000) {
+        lastUpdateRef.current = timestamp
+        updateTimer()
       }
-    }, 1000)
+      rafRef.current = requestAnimationFrame(tick)
+    }
 
-    return () => clearInterval(interval)
-  }, [active, startTime, duration])
+    updateTimer()
+    rafRef.current = requestAnimationFrame(tick)
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = null
+      }
+    }
+  }, [active, startTime, duration, updateTimer])
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600)
@@ -53,13 +76,22 @@ export function MissionTimer({ active, startTime, duration }: MissionTimerProps)
 
   if (!active) return null
 
+  const isNearLimit = maxDuration && elapsed >= (maxDuration * 60 - 60)
+
   return (
     <Badge
       variant="outline"
-      className="gap-1.5 border-chart-3/50 text-chart-3 bg-chart-3/5 font-mono text-sm px-2.5 py-1"
+      className={`gap-1.5 font-mono text-sm px-2.5 py-1 ${
+        isNearLimit 
+          ? "border-destructive/50 text-destructive bg-destructive/5 animate-pulse" 
+          : "border-chart-3/50 text-chart-3 bg-chart-3/5"
+      }`}
     >
       <Timer className="w-3.5 h-3.5 animate-pulse" />
       {formatTime(elapsed)}
+      {maxDuration && (
+        <span className="text-xs opacity-70">/ {maxDuration}m</span>
+      )}
     </Badge>
   )
 }

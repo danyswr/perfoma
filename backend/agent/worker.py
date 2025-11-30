@@ -759,7 +759,7 @@ class AgentWorker:
                 )
     
     async def _save_findings_with_sharing(self, findings: List[str]):
-        """Save findings and share with other agents"""
+        """Save findings and share with other agents - broadcasts in real-time"""
         for finding in findings:
             severity = self._classify_severity(finding)
             
@@ -790,19 +790,23 @@ class AgentWorker:
                     agent_id=self.agent_id
                 )
             
-            await self.logger.write_finding(self.agent_id, finding, target=self.target)
+            await self.logger.write_finding(self.agent_id, finding, target=self.target, severity=severity)
             
-            await self.logger.log_event(
-                f"Agent {self.agent_id} finding: {finding[:100]}...",
-                "finding",
-                {"severity": severity}
-            )
+            await self._broadcast_finding_realtime(finding_data)
             
             await self.agent_comm.update_capabilities(
                 self.agent_id,
                 findings_count=len([f for f in self.shared_knowledge.get("findings", []) 
                                    if f["agent_id"] == self.agent_id])
             )
+    
+    async def _broadcast_finding_realtime(self, finding_data: Dict):
+        """Broadcast finding to WebSocket clients in real-time"""
+        try:
+            from server.ws import manager
+            await manager.broadcast_finding(finding_data)
+        except Exception:
+            pass
     
     async def _apply_intelligent_delay(self):
         """Apply intelligent delay based on throttling, stealth, and rate limits"""

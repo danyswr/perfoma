@@ -96,7 +96,7 @@ export function useMission() {
           completedTasks: 0,
           findings: 0,
           startTime: missionStartTime,
-          maxDuration: config.executionDuration ? config.executionDuration * 60 : null,
+          maxDuration: config.executionDuration || null,
         })
 
         timerRef.current = setInterval(() => {

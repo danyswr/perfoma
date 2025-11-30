@@ -678,6 +678,97 @@ class AgentMemory:
             await db.commit()
 
 
+    async def save_session(self, session_id: str, target: str, config: Dict, agents_state: List[Dict]) -> bool:
+        """Save the current session state for resume capability"""
+        await self.initialize()
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id TEXT PRIMARY KEY,
+                    target TEXT NOT NULL,
+                    config TEXT NOT NULL,
+                    agents_state TEXT NOT NULL,
+                    status TEXT DEFAULT 'paused',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            await db.execute("""
+                INSERT OR REPLACE INTO sessions (id, target, config, agents_state, status, updated_at)
+                VALUES (?, ?, ?, ?, 'paused', CURRENT_TIMESTAMP)
+            """, (session_id, target, json.dumps(config), json.dumps(agents_state)))
+            await db.commit()
+            return True
+    
+    async def get_session(self, session_id: str) -> Optional[Dict]:
+        """Retrieve a saved session"""
+        await self.initialize()
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT * FROM sessions WHERE id = ?
+            """, (session_id,)) as cursor:
+                row = await cursor.fetchone()
+                if row:
+                    session = dict(row)
+                    session['config'] = json.loads(session['config'])
+                    session['agents_state'] = json.loads(session['agents_state'])
+                    return session
+                return None
+    
+    async def list_sessions(self, limit: int = 10) -> List[Dict]:
+        """List recent sessions available for resume"""
+        await self.initialize()
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id TEXT PRIMARY KEY,
+                    target TEXT NOT NULL,
+                    config TEXT NOT NULL,
+                    agents_state TEXT NOT NULL,
+                    status TEXT DEFAULT 'paused',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            await db.commit()
+            
+            async with db.execute("""
+                SELECT id, target, status, created_at, updated_at 
+                FROM sessions 
+                ORDER BY updated_at DESC 
+                LIMIT ?
+            """, (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+    
+    async def delete_session(self, session_id: str) -> bool:
+        """Delete a saved session"""
+        await self.initialize()
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+            await db.commit()
+            return True
+    
+    async def update_session_status(self, session_id: str, status: str) -> bool:
+        """Update session status (running, paused, completed)"""
+        await self.initialize()
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                UPDATE sessions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
+            """, (status, session_id))
+            await db.commit()
+            return True
+
+
 class AgentMemoryManager:
     """Singleton manager for agent memory"""
     

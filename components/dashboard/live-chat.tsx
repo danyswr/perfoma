@@ -144,9 +144,9 @@ export function LiveChat() {
         </Tabs>
       </CardHeader>
 
-      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
-        {connectionError && (
-          <div className="mx-4 mb-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+      <CardContent className="flex-1 flex flex-col p-0 min-h-0 overflow-hidden">
+        {connectionError && connectionError !== "WebSocket connection error" && !connectionError.includes("Unable to connect") && (
+          <div className="mx-4 mb-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 shrink-0">
             <div className="flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
               <div className="flex-1 min-w-0">
@@ -174,8 +174,8 @@ export function LiveChat() {
         )}
 
         {activeTab === "history" ? (
-          <ScrollArea className="flex-1 px-4" ref={scrollRef}>
-            <div className="space-y-4 py-4">
+          <ScrollArea className="flex-1 min-h-0 px-4" ref={scrollRef}>
+            <div className="space-y-4 py-4 max-h-[300px] overflow-y-auto">
               {chatHistory.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <History className="w-8 h-8 mx-auto mb-2 opacity-50" />
@@ -187,8 +187,8 @@ export function LiveChat() {
             </div>
           </ScrollArea>
         ) : (
-          <ScrollArea className="flex-1 px-4" ref={scrollRef}>
-            <div className="space-y-4 py-4">
+          <ScrollArea className="flex-1 min-h-0 px-4" ref={scrollRef}>
+            <div className="space-y-4 py-4 max-h-[300px] overflow-y-auto">
               {messages.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Bot className="w-8 h-8 mx-auto mb-2 opacity-50" />

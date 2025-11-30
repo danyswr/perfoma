@@ -135,7 +135,7 @@ export function ModelInstructions() {
           )}
         </CardHeader>
 
-        <CardContent className="flex-1 min-h-0 px-2 pb-2">
+        <CardContent className="flex-1 min-h-0 px-2 pb-2 overflow-hidden">
           {instructions.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-8">
               <Brain className="w-10 h-10 mb-2 opacity-20" />
@@ -145,7 +145,7 @@ export function ModelInstructions() {
               </p>
             </div>
           ) : (
-            <ScrollArea className="h-full">
+            <ScrollArea className="h-full max-h-[400px]">
               <div className="space-y-2 p-1">
                 {instructions.map((instruction) => (
                   <div

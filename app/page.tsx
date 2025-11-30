@@ -227,7 +227,8 @@ export default function Dashboard() {
               <MissionTimer 
                 active={mission.active} 
                 startTime={mission.startTime} 
-                duration={mission.duration} 
+                duration={mission.duration}
+                maxDuration={mission.maxDuration}
               />
               <Button variant="destructive" size="sm" onClick={stopMission}>
                 Stop Mission
