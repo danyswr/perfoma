@@ -14,11 +14,11 @@ docker-compose --version
 
 ### 2. Jalankan Docker
 ```bash
-# Build dan run services
-docker-compose up --build
+# Build dan run services (Docker 29+ menggunakan 'docker compose' tanpa hyphen)
+docker compose up --build
 
 # Atau jika sudah built sebelumnya (lebih cepat):
-docker-compose up
+docker compose up
 ```
 
 ### 3. Akses Aplikasi
@@ -33,43 +33,43 @@ docker-compose up
 ### Start Services
 ```bash
 # Jalankan di foreground (lihat logs)
-docker-compose up
+docker compose up
 
 # Jalankan di background
-docker-compose up -d
+docker compose up -d
 
 # Rebuild jika ada perubahan kode
-docker-compose up --build
+docker compose up --build
 ```
 
 ### Stop Services
 ```bash
 # Stop semua services
-docker-compose down
+docker compose down
 
 # Stop dan hapus volumes (database data)
-docker-compose down -v
+docker compose down -v
 ```
 
 ### View Logs
 ```bash
 # Lihat logs semua services
-docker-compose logs
+docker compose logs
 
 # Lihat logs backend saja
-docker-compose logs backend
+docker compose logs backend
 
 # Follow logs real-time
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### Rebuild Services
 ```bash
 # Rebuild image
-docker-compose build
+docker compose build
 
 # Rebuild tanpa cache
-docker-compose build --no-cache
+docker compose build --no-cache
 ```
 
 ---
@@ -132,25 +132,25 @@ taskkill /PID <PID> /F
 ### Database connection error
 ```bash
 # Reset database
-docker-compose down -v
-docker-compose up --build
+docker compose down -v
+docker compose up --build
 ```
 
 ### Check container status
 ```bash
-docker-compose ps
+docker compose ps
 ```
 
 ### SSH ke container
 ```bash
 # Ke backend
-docker-compose exec backend bash
+docker compose exec backend bash
 
 # Ke frontend
-docker-compose exec frontend sh
+docker compose exec frontend sh
 
 # Ke database
-docker-compose exec postgres psql -U user -d performa
+docker compose exec postgres psql -U user -d performa
 ```
 
 ---
