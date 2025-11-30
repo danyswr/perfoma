@@ -39,6 +39,53 @@ import { checkBackendHealth, api } from "@/lib/api"
 import type { MissionConfig, Agent, Finding, StealthOptions, CapabilityOptions } from "@/lib/types"
 import { OPENROUTER_MODELS, DEFAULT_STEALTH_OPTIONS, DEFAULT_CAPABILITY_OPTIONS } from "@/lib/types"
 
+import { toast } from "sonner"
+import { Save } from "lucide-react"
+
+function SaveSessionButton() {
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const response = await api.saveSession()
+      if (response.data) {
+        setSaved(true)
+        toast.success("Session saved!", {
+          description: `ID: ${response.data.session_id.substring(0, 8)}...`
+        })
+        setTimeout(() => setSaved(false), 3000)
+      } else if (response.error) {
+        toast.error("Save failed", { description: response.error })
+      }
+    } catch {
+      toast.error("Failed to save session")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Button 
+      variant={saved ? "default" : "outline"}
+      size="sm" 
+      onClick={handleSave}
+      disabled={saving}
+      className={`gap-1.5 ${saved ? 'bg-green-600 hover:bg-green-700' : ''}`}
+    >
+      {saving ? (
+        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+      ) : saved ? (
+        <Check className="w-3.5 h-3.5" />
+      ) : (
+        <Save className="w-3.5 h-3.5" />
+      )}
+      {saved ? 'Saved' : 'Save'}
+    </Button>
+  )
+}
+
 export default function Dashboard() {
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking")
   const [chatOpen, setChatOpen] = useState(false)
@@ -230,6 +277,7 @@ export default function Dashboard() {
                 duration={mission.duration}
                 maxDuration={mission.maxDuration}
               />
+              <SaveSessionButton />
               <Button variant="destructive" size="sm" onClick={stopMission}>
                 Stop Mission
               </Button>

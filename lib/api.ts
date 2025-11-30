@@ -290,6 +290,63 @@ export const api = {
       return { error: "Cannot fetch log content" }
     }
   },
+
+  async saveSession() {
+    try {
+      const res = await fetch(`${API_BASE}/api/session/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      return handleResponse<{ status: string; session_id: string; message: string }>(res)
+    } catch {
+      return { error: "Cannot save session" }
+    }
+  },
+
+  async getSessions() {
+    try {
+      const res = await fetch(`${API_BASE}/api/sessions`)
+      return handleResponse<{ sessions: SessionInfo[]; total: number }>(res)
+    } catch {
+      return { error: "Cannot fetch sessions", data: { sessions: [], total: 0 } }
+    }
+  },
+
+  async resumeSession(sessionId: string) {
+    try {
+      const res = await fetch(`${API_BASE}/api/session/${sessionId}/resume`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      return handleResponse<{ status: string; agent_ids: string[] }>(res)
+    } catch {
+      return { error: "Cannot resume session" }
+    }
+  },
+
+  async getAgentRealtimeLogs(agentId: string) {
+    try {
+      const res = await fetch(`${API_BASE}/api/agents/${agentId}/logs/realtime`)
+      return handleResponse<{ logs: AgentLogEntry[]; agent_id: string }>(res)
+    } catch {
+      return { error: "Cannot fetch agent logs" }
+    }
+  },
+}
+
+export interface SessionInfo {
+  id: string
+  target: string
+  status: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AgentLogEntry {
+  timestamp: string
+  type: string
+  message: string
+  metadata?: Record<string, any>
 }
 
 export interface AgentResponse {
@@ -387,4 +444,11 @@ export interface FileContentResponse {
   type: string
   content: any
   filename: string
+}
+
+export interface AgentLogEntry {
+  timestamp: string
+  type: string
+  message: string
+  metadata?: Record<string, any>
 }

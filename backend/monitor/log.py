@@ -57,7 +57,7 @@ class Logger:
         event_type: str = "info",
         metadata: Dict[str, Any] = None
     ):
-        """Log an event to per-agent log file"""
+        """Log an event to per-agent log file and broadcast in real-time"""
         timestamp = datetime.now().isoformat()
         
         log_entry = {
@@ -71,6 +71,12 @@ class Logger:
         
         async with aiofiles.open(log_file, 'a') as f:
             await f.write(json.dumps(log_entry) + "\n")
+        
+        try:
+            from server.ws import manager
+            await manager.broadcast_agent_log(agent_id, log_entry)
+        except Exception:
+            pass
         
         await self.log_event(message, event_type, {**(metadata or {}), "agent_id": agent_id})
         

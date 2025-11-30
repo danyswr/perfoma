@@ -1,8 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { api, type FindingsExplorerResponse, type FileInfo, type FolderInfo, type FileContentResponse } from "@/lib/api"
+import { api, type FindingsExplorerResponse, type FileInfo, type FolderInfo, type FileContentResponse, type AgentLogEntry } from "@/lib/api"
 import { useWebSocket } from "./use-websocket"
+
+interface AgentRealtimeLogs {
+  [agentId: string]: AgentLogEntry[]
+}
 
 export function useFindingsExplorer() {
   const [explorer, setExplorer] = useState<FindingsExplorerResponse>({
@@ -16,6 +20,7 @@ export function useFindingsExplorer() {
   const [fileContent, setFileContent] = useState<FileContentResponse | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
   const [logs, setLogs] = useState<FileInfo[]>([])
+  const [realtimeLogs, setRealtimeLogs] = useState<AgentRealtimeLogs>({})
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const { lastMessage } = useWebSocket()
 
@@ -89,7 +94,23 @@ export function useFindingsExplorer() {
     if (lastMessage?.type === "findings_explorer_update" && lastMessage.data) {
       setExplorer(lastMessage.data as FindingsExplorerResponse)
     }
-  }, [lastMessage])
+    
+    if (lastMessage?.type === "agent_log" && lastMessage.agent_id && lastMessage.log) {
+      setRealtimeLogs(prev => {
+        const agentId = lastMessage.agent_id as string
+        const newLog = lastMessage.log as AgentLogEntry
+        const existingLogs = prev[agentId] || []
+        return {
+          ...prev,
+          [agentId]: [...existingLogs.slice(-99), newLog]
+        }
+      })
+    }
+    
+    if (lastMessage?.type === "finding_update" && lastMessage.finding) {
+      fetchExplorer()
+    }
+  }, [lastMessage, fetchExplorer])
 
   useEffect(() => {
     setLoading(true)
@@ -98,7 +119,7 @@ export function useFindingsExplorer() {
     intervalRef.current = setInterval(() => {
       fetchExplorer()
       fetchLogs()
-    }, 5000)
+    }, 2000)
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
@@ -108,6 +129,7 @@ export function useFindingsExplorer() {
   return {
     explorer,
     logs,
+    realtimeLogs,
     loading,
     selectedFile,
     fileContent,
@@ -116,6 +138,7 @@ export function useFindingsExplorer() {
     closeFile,
     refetch: fetchExplorer,
     refetchLogs: fetchLogs,
+    clearRealtimeLogs: () => setRealtimeLogs({}),
   }
 }
 

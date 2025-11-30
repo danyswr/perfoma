@@ -688,6 +688,18 @@ class AgentWorker:
                     await self.agent_comm.complete_task(self.agent_id, task_id, {"blocked": True})
                     continue
                 
+                if self.allowed_tools_only and self.requested_tools:
+                    tool_name = cmd.split()[0]
+                    if tool_name not in self.requested_tools:
+                        self.last_execute = f"BLOCKED: Tool '{tool_name}' not in user-selected tools"
+                        await self.logger.log_agent_event(
+                            self.agent_id,
+                            f"Blocked tool '{tool_name}' - not in user-selected tools: {self.requested_tools[:5]}",
+                            "tool_restriction"
+                        )
+                        await self.agent_comm.complete_task(self.agent_id, task_id, {"blocked": True, "reason": "not_in_user_tools"})
+                        continue
+                
                 self.last_execute = cmd
                 
                 await self.logger.log_event(
@@ -853,11 +865,16 @@ class AgentWorker:
         if self.custom_instruction:
             custom_section = f"\nCUSTOM: {self.custom_instruction}\n"
         
-        tools_by_category = get_allowed_tools_by_category()
-        tools_list = []
-        for category, tools in tools_by_category.items():
-            tools_list.extend(list(tools)[:8])
-        tools_str = ", ".join(sorted(set(tools_list))[:30])
+        if self.allowed_tools_only and self.requested_tools:
+            tools_str = ", ".join(sorted(self.requested_tools)[:30])
+            tools_warning = "\nIMPORTANT: You can ONLY use these exact tools. Any other tool will be BLOCKED."
+        else:
+            tools_by_category = get_allowed_tools_by_category()
+            tools_list = []
+            for category, tools in tools_by_category.items():
+                tools_list.extend(list(tools)[:8])
+            tools_str = ", ".join(sorted(set(tools_list))[:30])
+            tools_warning = ""
         
         prompt = f"""You are an autonomous cybersecurity AI orchestrating multiple agents.
 
@@ -865,7 +882,7 @@ Target: {self.target}
 Category: {self.category}
 Mode: {mode_str}
 {custom_section}
-AVAILABLE TOOLS: {tools_str}
+AVAILABLE TOOLS: {tools_str}{tools_warning}
 
 ## OUTPUT FORMAT - SEQUENTIAL QUEUE COMMANDS
 

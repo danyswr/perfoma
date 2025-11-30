@@ -1,9 +1,12 @@
 "use client"
 
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Shield, Activity, Terminal, Wifi, WifiOff, Loader2 } from "lucide-react"
+import { Settings, Shield, Activity, Terminal, Wifi, WifiOff, Loader2, Save, Check } from "lucide-react"
 import { useWebSocket } from "@/hooks/use-websocket"
+import { api } from "@/lib/api"
+import { toast } from "sonner"
 
 interface NavbarProps {
   onConfigClick: () => void
@@ -12,6 +15,30 @@ interface NavbarProps {
 
 export function Navbar({ onConfigClick, missionActive }: NavbarProps) {
   const { connected, connecting, connectionError } = useWebSocket()
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const handleSaveSession = async () => {
+    setSaving(true)
+    try {
+      const response = await api.saveSession()
+      if (response.data) {
+        setSaved(true)
+        toast.success("Session saved successfully", {
+          description: `Session ID: ${response.data.session_id.substring(0, 8)}...`
+        })
+        setTimeout(() => setSaved(false), 3000)
+      } else if (response.error) {
+        toast.error("Failed to save session", {
+          description: response.error
+        })
+      }
+    } catch (error) {
+      toast.error("Failed to save session")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -68,6 +95,24 @@ export function Navbar({ onConfigClick, missionActive }: NavbarProps) {
 
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {missionActive && (
+              <Button 
+                variant={saved ? "default" : "outline"}
+                size="sm"
+                onClick={handleSaveSession}
+                disabled={saving}
+                className={`gap-2 ${saved ? 'bg-green-600 hover:bg-green-700' : 'bg-transparent'}`}
+              >
+                {saving ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : saved ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">{saved ? 'Saved' : 'Save Session'}</span>
+              </Button>
+            )}
             <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
               <Terminal className="w-5 h-5" />
             </Button>

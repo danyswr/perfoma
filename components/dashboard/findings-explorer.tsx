@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -11,9 +11,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import {
   FolderOpen, FileJson, FileText, File, FileCode, 
   ChevronRight, ChevronDown, Download, X, RefreshCw,
-  Clock, HardDrive, Eye, Terminal
+  Clock, HardDrive, Eye, Terminal, Activity, Zap
 } from "lucide-react"
 import { useFindingsExplorer, type FileInfo, type FolderInfo } from "@/hooks/use-findings-explorer"
+import type { AgentLogEntry } from "@/lib/api"
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -205,10 +206,47 @@ function FileViewer({ file, content, loading, onClose }: {
   )
 }
 
+function RealtimeLogEntry({ log, agentId }: { log: AgentLogEntry; agentId: string }) {
+  const getLogTypeColor = (type: string) => {
+    switch (type) {
+      case 'error':
+      case 'security_violation':
+        return 'text-red-500'
+      case 'warning':
+      case 'tool_restriction':
+        return 'text-yellow-500'
+      case 'command':
+        return 'text-blue-500'
+      case 'coordination':
+        return 'text-purple-500'
+      default:
+        return 'text-muted-foreground'
+    }
+  }
+
+  return (
+    <div className="flex items-start gap-2 py-1 px-2 text-[11px] hover:bg-muted/30 rounded font-mono">
+      <span className="text-muted-foreground whitespace-nowrap">
+        {new Date(log.timestamp).toLocaleTimeString()}
+      </span>
+      <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
+        {agentId.substring(0, 8)}
+      </Badge>
+      <span className={`${getLogTypeColor(log.type)} uppercase text-[9px] font-bold`}>
+        [{log.type}]
+      </span>
+      <span className="flex-1 text-foreground/80 break-all">
+        {log.message}
+      </span>
+    </div>
+  )
+}
+
 export function FindingsExplorer() {
   const { 
     explorer, 
     logs,
+    realtimeLogs,
     loading, 
     selectedFile, 
     fileContent, 
@@ -216,9 +254,21 @@ export function FindingsExplorer() {
     openFile, 
     closeFile,
     refetch,
-    refetchLogs 
+    refetchLogs,
+    clearRealtimeLogs
   } = useFindingsExplorer()
-  const [activeTab, setActiveTab] = useState<"findings" | "logs">("findings")
+  const [activeTab, setActiveTab] = useState<"findings" | "logs" | "realtime">("findings")
+  const scrollRef = useRef<HTMLDivElement>(null)
+  
+  const allRealtimeLogs = Object.entries(realtimeLogs).flatMap(([agentId, logs]) => 
+    logs.map(log => ({ ...log, agentId }))
+  ).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  
+  useEffect(() => {
+    if (scrollRef.current && activeTab === "realtime") {
+      scrollRef.current.scrollTop = 0
+    }
+  }, [allRealtimeLogs.length, activeTab])
 
   return (
     <>
@@ -243,15 +293,22 @@ export function FindingsExplorer() {
           </div>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden p-0">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "findings" | "logs")} className="h-full flex flex-col">
-            <TabsList className="mx-4 mt-2 grid grid-cols-2 h-8">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "findings" | "logs" | "realtime")} className="h-full flex flex-col">
+            <TabsList className="mx-4 mt-2 grid grid-cols-3 h-8">
               <TabsTrigger value="findings" className="text-xs gap-1">
                 <FolderOpen className="w-3 h-3" />
                 Findings
               </TabsTrigger>
+              <TabsTrigger value="realtime" className="text-xs gap-1 relative">
+                <Zap className="w-3 h-3" />
+                Live
+                {allRealtimeLogs.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                )}
+              </TabsTrigger>
               <TabsTrigger value="logs" className="text-xs gap-1">
                 <Terminal className="w-3 h-3" />
-                Agent Logs
+                Files
               </TabsTrigger>
             </TabsList>
             
@@ -291,14 +348,56 @@ export function FindingsExplorer() {
               </ScrollArea>
             </TabsContent>
             
+            <TabsContent value="realtime" className="flex-1 overflow-hidden m-0 p-2">
+              <div className="h-full flex flex-col">
+                <div className="flex items-center justify-between px-2 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-3 h-3 text-green-500 animate-pulse" />
+                    <span className="text-xs text-muted-foreground">
+                      {allRealtimeLogs.length} live events
+                    </span>
+                  </div>
+                  {allRealtimeLogs.length > 0 && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 text-xs"
+                      onClick={clearRealtimeLogs}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+                <ScrollArea className="flex-1">
+                  <div ref={scrollRef} className="space-y-0.5">
+                    {allRealtimeLogs.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Zap className="w-10 h-10 mx-auto mb-2 opacity-20" />
+                        <p className="text-sm">No live logs yet</p>
+                        <p className="text-xs">Real-time agent events appear here</p>
+                      </div>
+                    ) : (
+                      allRealtimeLogs.slice(0, 100).map((log, idx) => (
+                        <RealtimeLogEntry 
+                          key={`${log.agentId}-${log.timestamp}-${idx}`} 
+                          log={log} 
+                          agentId={log.agentId}
+                        />
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </TabsContent>
+            
             <TabsContent value="logs" className="flex-1 overflow-hidden m-0 p-2">
               <ScrollArea className="h-full">
                 <div className="space-y-1 p-2">
                   {logs.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <Terminal className="w-10 h-10 mx-auto mb-2 opacity-20" />
-                      <p className="text-sm">No logs available</p>
-                      <p className="text-xs">Agent logs will appear here</p>
+                      <p className="text-sm">No log files</p>
+                      <p className="text-xs">Agent log files will appear here</p>
                     </div>
                   ) : (
                     logs.map((log) => (

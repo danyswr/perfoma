@@ -158,6 +158,18 @@ class ConnectionManager:
             "finding": finding,
             "timestamp": datetime.now().isoformat()
         })
+    
+    async def broadcast_agent_log(self, agent_id: str, log_entry: dict):
+        """Broadcast real-time agent log entry to all clients"""
+        if not self.active_connections:
+            return
+        
+        await self.broadcast({
+            "type": "agent_log",
+            "agent_id": agent_id,
+            "log": log_entry,
+            "timestamp": datetime.now().isoformat()
+        })
 
 manager = ConnectionManager()
 

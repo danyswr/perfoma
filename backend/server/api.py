@@ -376,3 +376,154 @@ async def generate_deserialization(language: str, gadget: str, command: str):
         return {"status": "success", "payload": payload, "all_payloads": all_payloads, "available_languages": list(exploiter.gadget_chains.keys())}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/session/save")
+async def save_session():
+    """Save current mission session for later resume"""
+    try:
+        from agent.memory import get_memory
+        import uuid
+        
+        memory = get_memory()
+        agents = await agent_manager.get_all_agents()
+        
+        if not agents:
+            raise HTTPException(status_code=400, detail="No active mission to save")
+        
+        first_agent = agents[0] if agents else {}
+        target = first_agent.get("target", "unknown")
+        
+        session_id = str(uuid.uuid4())[:8]
+        config = {
+            "target": target,
+            "agents_count": len(agents),
+            "saved_at": datetime.now().isoformat()
+        }
+        
+        agents_state = [
+            {
+                "id": a.get("id"),
+                "status": a.get("status"),
+                "target": a.get("target"),
+                "progress": a.get("progress", 0),
+                "tasks_completed": a.get("tasks_completed", 0)
+            }
+            for a in agents
+        ]
+        
+        await memory.save_session(session_id, target, config, agents_state)
+        
+        return {
+            "status": "saved",
+            "session_id": session_id,
+            "message": f"Session saved with {len(agents)} agents"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/sessions")
+async def list_sessions():
+    """List all saved sessions"""
+    try:
+        from agent.memory import get_memory
+        memory = get_memory()
+        sessions = await memory.list_sessions(limit=20)
+        return {
+            "sessions": sessions,
+            "total": len(sessions)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/session/{session_id}/resume")
+async def resume_session(session_id: str, background_tasks: BackgroundTasks):
+    """Resume a saved session"""
+    try:
+        from agent.memory import get_memory
+        memory = get_memory()
+        
+        session = await memory.get_session(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        await memory.update_session_status(session_id, "running")
+        
+        agents_state = session.get("agents_state", [])
+        config = session.get("config", {})
+        
+        agent_ids = await agent_manager.create_agents(
+            num_agents=len(agents_state) or 1,
+            target=session.get("target", ""),
+            category="domain",
+            model_name="openai/gpt-4-turbo"
+        )
+        
+        background_tasks.add_task(
+            agent_manager.start_operation,
+            agent_ids,
+            config
+        )
+        
+        return {
+            "status": "resumed",
+            "session_id": session_id,
+            "agent_ids": agent_ids
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/session/{session_id}")
+async def delete_session(session_id: str):
+    """Delete a saved session"""
+    try:
+        from agent.memory import get_memory
+        memory = get_memory()
+        await memory.delete_session(session_id)
+        return {"status": "deleted", "session_id": session_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/agents/{agent_id}/logs/realtime")
+async def get_agent_realtime_logs(agent_id: str):
+    """Get real-time logs for a specific agent"""
+    try:
+        from monitor.log import Logger
+        import os
+        import json
+        
+        logger = Logger()
+        log_files = logger.get_agent_log_files()
+        
+        agent_log_path = None
+        for aid, path in log_files.items():
+            if agent_id in aid or aid in agent_id:
+                agent_log_path = path
+                break
+        
+        logs = []
+        if agent_log_path and os.path.exists(agent_log_path):
+            with open(agent_log_path, 'r') as f:
+                lines = f.readlines()[-100:]
+                for line in lines:
+                    try:
+                        log_entry = json.loads(line.strip())
+                        logs.append(log_entry)
+                    except:
+                        continue
+        
+        return {
+            "logs": logs,
+            "agent_id": agent_id,
+            "total": len(logs)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
