@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/pyproject.toml backend/uv.lock* ./
+COPY pyproject.toml uv.lock* ./
 RUN pip install uv && uv sync
 
 COPY backend/ .
