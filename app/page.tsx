@@ -1083,12 +1083,12 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: ()
               <Progress value={agent.cpuUsage} className="h-1.5 mt-1" />
             </div>
             
-            <div className={`p-3 rounded-lg border ${agent.memoryUsage > 512 ? 'bg-red-500/10 border-red-500/30' : agent.memoryUsage > 256 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-muted/30'}`}>
+            <div className={`p-3 rounded-lg border ${agent.memoryUsage > 1024 ? 'bg-red-500/10 border-red-500/30' : agent.memoryUsage > 512 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-muted/30'}`}>
               <div className="flex items-center gap-2 mb-1">
-                <MemoryStick className={`w-4 h-4 ${agent.memoryUsage > 512 ? 'text-red-500' : agent.memoryUsage > 256 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                <MemoryStick className={`w-4 h-4 ${agent.memoryUsage > 1024 ? 'text-red-500' : agent.memoryUsage > 512 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
                 <span className="text-xs text-muted-foreground">Memory Used</span>
               </div>
-              <span className={`text-lg font-mono font-semibold ${agent.memoryUsage > 512 ? 'text-red-500' : agent.memoryUsage > 256 ? 'text-yellow-500' : 'text-blue-500'}`}>{agent.memoryUsage}MB</span>
+              <span className={`text-lg font-mono font-semibold ${agent.memoryUsage > 1024 ? 'text-red-500' : agent.memoryUsage > 512 ? 'text-yellow-500' : 'text-blue-500'}`}>{agent.memoryUsage}MB</span>
               <Progress value={Math.min(agent.memoryUsage / 10, 100)} className="h-1.5 mt-1" />
             </div>
           </div>
@@ -1193,7 +1193,7 @@ function AgentCard({ agent, viewMode = "list", onDetail, onPause, onResume, onRe
   }, [agent.status, agent.executionTime])
 
   const getCardColors = () => {
-    if (agent.memoryUsage > 512) {
+    if (agent.memoryUsage > 1024) {
       return "border-red-500/50 bg-red-500/5"
     }
     const statusColors: Record<string, string> = {
