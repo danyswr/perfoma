@@ -1083,22 +1083,13 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: ()
               <Progress value={agent.cpuUsage} className="h-1.5 mt-1" />
             </div>
             
-            <div className="p-3 rounded-lg bg-muted/30 border">
+            <div className={`p-3 rounded-lg border ${agent.memoryUsage > 512 ? 'bg-red-500/10 border-red-500/30' : agent.memoryUsage > 256 ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-muted/30'}`}>
               <div className="flex items-center gap-2 mb-1">
-                <MemoryStick className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Memory</span>
+                <MemoryStick className={`w-4 h-4 ${agent.memoryUsage > 512 ? 'text-red-500' : agent.memoryUsage > 256 ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+                <span className="text-xs text-muted-foreground">Memory Used</span>
               </div>
-              <span className="text-lg font-mono font-semibold text-blue-500">{agent.memoryUsage}MB</span>
-              <Progress value={Math.min(agent.memoryUsage / 5, 100)} className="h-1.5 mt-1" />
-            </div>
-            
-            <div className="p-3 rounded-lg bg-muted/30 border">
-              <div className="flex items-center gap-2 mb-1">
-                <Activity className="w-4 h-4 text-muted-foreground" />
-                <span className="text-xs text-muted-foreground">Progress</span>
-              </div>
-              <span className="text-lg font-mono font-semibold text-emerald-500">{agent.progress}%</span>
-              <Progress value={agent.progress} className="h-1.5 mt-1" />
+              <span className={`text-lg font-mono font-semibold ${agent.memoryUsage > 512 ? 'text-red-500' : agent.memoryUsage > 256 ? 'text-yellow-500' : 'text-blue-500'}`}>{agent.memoryUsage}MB</span>
+              <Progress value={Math.min(agent.memoryUsage / 10, 100)} className="h-1.5 mt-1" />
             </div>
           </div>
 
@@ -1201,6 +1192,20 @@ function AgentCard({ agent, viewMode = "list", onDetail, onPause, onResume, onRe
     return () => clearInterval(interval)
   }, [agent.status, agent.executionTime])
 
+  const getCardColors = () => {
+    if (agent.memoryUsage > 512) {
+      return "border-red-500/50 bg-red-500/5"
+    }
+    const statusColors: Record<string, string> = {
+      idle: "border-muted-foreground/20",
+      running: "border-emerald-500/50 bg-emerald-500/5",
+      paused: "border-yellow-500/50 bg-yellow-500/5",
+      error: "border-red-500/50 bg-red-500/5",
+      break: "border-blue-500/50 bg-blue-500/5",
+    }
+    return statusColors[agent.status] || "border-border"
+  }
+  
   const statusColors: Record<string, string> = {
     idle: "border-muted-foreground/20",
     running: "border-emerald-500/50 bg-emerald-500/5",
@@ -1219,7 +1224,7 @@ function AgentCard({ agent, viewMode = "list", onDetail, onPause, onResume, onRe
 
   if (viewMode === "grid") {
     return (
-      <div className={`p-3 rounded-lg border ${statusColors[agent.status]} transition-all hover:shadow-md cursor-pointer group`} onClick={onDetail}>
+      <div className={`p-3 rounded-lg border ${getCardColors()} transition-all hover:shadow-md cursor-pointer group`} onClick={onDetail}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <div className="relative">
@@ -1245,7 +1250,7 @@ function AgentCard({ agent, viewMode = "list", onDetail, onPause, onResume, onRe
   }
 
   return (
-    <div className={`p-3 rounded-lg border ${statusColors[agent.status]} transition-all hover:shadow-md cursor-pointer group`} onClick={onDetail}>
+    <div className={`p-3 rounded-lg border ${getCardColors()} transition-all hover:shadow-md cursor-pointer group`} onClick={onDetail}>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="relative">

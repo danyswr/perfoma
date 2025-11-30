@@ -301,7 +301,7 @@ export function FindingsExplorer() {
               </TabsTrigger>
               <TabsTrigger value="realtime" className="text-xs gap-1 relative">
                 <Zap className="w-3 h-3" />
-                Live
+                Agents
                 {allRealtimeLogs.length > 0 && (
                   <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 )}

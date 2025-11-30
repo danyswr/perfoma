@@ -74,7 +74,8 @@ class Logger:
         
         try:
             from server.ws import manager
-            await manager.broadcast_agent_log(agent_id, log_entry)
+            if manager and manager.active_connections:
+                await manager.broadcast_agent_log(agent_id, log_entry)
         except Exception:
             pass
         

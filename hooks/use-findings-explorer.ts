@@ -119,7 +119,7 @@ export function useFindingsExplorer() {
     intervalRef.current = setInterval(() => {
       fetchExplorer()
       fetchLogs()
-    }, 2000)
+    }, 500)
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
