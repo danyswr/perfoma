@@ -5,7 +5,7 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app
 
-ARG NEXT_PUBLIC_API_URL=http://backend:8000
+ARG NEXT_PUBLIC_API_URL=http://localhost:8000
 
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps
