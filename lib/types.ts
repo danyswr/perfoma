@@ -1,6 +1,6 @@
 export interface MissionConfig {
   target: string
-  category: "domain" | "path"
+  category: "domain" | "path" | "ip"
   customInstruction: string
   stealthMode: boolean
   aggressiveLevel: number
@@ -11,19 +11,36 @@ export interface MissionConfig {
   osType: "windows" | "linux"
   batchSize: number
   rateLimitRps: number
+  rateLimitEnabled: boolean
   executionDuration: number | null
+  customDurationMinutes?: number
   requestedTools: string[]
+  allowedToolsOnly: boolean
 }
 
-export type ExecutionDuration = 10 | 20 | 30 | 60 | null
+export type ExecutionDuration = 5 | 10 | 15 | 20 | 30 | 60 | 120 | "custom" | null
 
 export const EXECUTION_DURATION_OPTIONS = [
+  { value: 5, label: "5 minutes" },
   { value: 10, label: "10 minutes" },
+  { value: 15, label: "15 minutes" },
   { value: 20, label: "20 minutes" },
   { value: 30, label: "30 minutes" },
   { value: 60, label: "60 minutes" },
+  { value: 120, label: "120 minutes" },
+  { value: "custom", label: "Custom" },
   { value: null, label: "Until stopped" },
 ] as const
+
+export interface RateLimitConfig {
+  enabled: boolean
+  requestsPerSecond: number
+}
+
+export const DEFAULT_RATE_LIMIT_CONFIG: RateLimitConfig = {
+  enabled: false,
+  requestsPerSecond: 1
+}
 
 export interface StealthOptions {
   proxyChain: boolean
@@ -77,7 +94,7 @@ export interface Mission {
 export interface Agent {
   id: string
   displayId: string
-  status: "idle" | "running" | "paused" | "error"
+  status: "idle" | "running" | "paused" | "error" | "break"
   lastCommand: string
   executionTime: string
   lastExecuteTime?: string
@@ -91,6 +108,7 @@ export interface Agent {
   findingsCount?: number
   cpuHistory?: ResourceDataPoint[]
   memoryHistory?: ResourceDataPoint[]
+  breakReason?: string
 }
 
 export interface ResourceDataPoint {

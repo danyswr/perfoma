@@ -60,6 +60,7 @@ export const api = {
     rate_limit_rps?: number
     execution_duration?: number | null
     requested_tools?: string[]
+    allowed_tools_only?: boolean
   }) {
     try {
       const res = await fetch(`${API_BASE}/api/start`, {

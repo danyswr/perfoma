@@ -63,8 +63,10 @@ export default function Dashboard() {
     osType: "linux",
     batchSize: 20,
     rateLimitRps: 1.0,
+    rateLimitEnabled: false,
     executionDuration: null,
     requestedTools: [],
+    allowedToolsOnly: false,
   })
   const [customModelId, setCustomModelId] = useState("")
   const [testingApi, setTestingApi] = useState(false)
@@ -1050,18 +1052,20 @@ function AgentCard({ agent, viewMode = "list", onDetail, onPause, onResume, onRe
     return () => clearInterval(interval)
   }, [agent.status, agent.executionTime])
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     idle: "border-muted-foreground/20",
     running: "border-emerald-500/50 bg-emerald-500/5",
     paused: "border-yellow-500/50 bg-yellow-500/5",
     error: "border-red-500/50 bg-red-500/5",
+    break: "border-blue-500/50 bg-blue-500/5",
   }
 
-  const statusDot = {
+  const statusDot: Record<string, string> = {
     idle: "bg-muted-foreground",
     running: "bg-emerald-500",
     paused: "bg-yellow-500",
     error: "bg-red-500",
+    break: "bg-blue-500",
   }
 
   if (viewMode === "grid") {

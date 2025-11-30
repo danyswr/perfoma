@@ -70,9 +70,10 @@ export function useMission() {
           stealth_options: config.stealthOptions as unknown as Record<string, boolean>,
           capabilities: config.capabilities as unknown as Record<string, boolean>,
           batch_size: config.batchSize,
-          rate_limit_rps: config.rateLimitRps,
+          rate_limit_rps: config.rateLimitEnabled ? config.rateLimitRps : 0,
           execution_duration: config.executionDuration,
           requested_tools: config.requestedTools,
+          allowed_tools_only: config.allowedToolsOnly,
         })
 
         if (response.error) {

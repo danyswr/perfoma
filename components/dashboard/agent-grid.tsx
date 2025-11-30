@@ -163,7 +163,7 @@ function AgentCard({ agent, compact, onPause, onResume, onRemove, onViewDetails 
   }, [agent.executionTime])
 
   useEffect(() => {
-    if (agent.status !== "running") {
+    if (agent.status !== "running" && agent.status !== "break") {
       return
     }
     
@@ -198,24 +198,30 @@ function AgentCard({ agent, compact, onPause, onResume, onRemove, onViewDetails 
     return () => clearInterval(interval)
   }, [agent.status, agent.executionTime])
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     idle: "bg-muted text-muted-foreground border-border",
     running: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20",
     paused: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
     error: "bg-red-500/10 text-red-500 border-red-500/20",
+    break: "bg-blue-500/10 text-blue-500 border-blue-500/20",
   }
 
-  const indicatorColors = {
+  const indicatorColors: Record<string, string> = {
     idle: "bg-muted-foreground",
     running: "bg-emerald-500",
     paused: "bg-yellow-500",
     error: "bg-red-500",
+    break: "bg-blue-500",
   }
+
+  const isBreak = agent.status === "break"
+  const isRunning = agent.status === "running"
 
   return (
     <div
       className={`group relative rounded-lg border p-2.5 transition-all hover:shadow-sm ${
-        agent.status === "running" ? "border-primary/20 bg-primary/5" : "border-border bg-card"
+        isBreak ? "border-blue-500/30 bg-blue-500/5" :
+        isRunning ? "border-primary/20 bg-primary/5" : "border-border bg-card"
       }`}
     >
       <div className="flex items-center justify-between mb-1.5">
@@ -230,7 +236,11 @@ function AgentCard({ agent, compact, onPause, onResume, onRemove, onViewDetails 
           </div>
           <div className="flex flex-col leading-none gap-0">
             <span className="font-semibold text-sm">Agent-{agent.id}</span>
-            <span className="text-[8px] text-muted-foreground uppercase font-mono">{agent.status}</span>
+            <span className={`text-[8px] uppercase font-mono ${
+              isBreak ? "text-blue-500" : "text-muted-foreground"
+            }`}>
+              {isBreak ? "BREAK" : agent.status}
+            </span>
           </div>
         </div>
 
@@ -277,19 +287,31 @@ function AgentCard({ agent, compact, onPause, onResume, onRemove, onViewDetails 
         <MetricItem icon={Activity} label="PROG" value={`${agent.progress}%`} />
       </div>
 
-      <div className="p-1.5 rounded bg-muted/30 border border-border/30">
+      <div className={`p-1.5 rounded border ${
+        isBreak ? "bg-blue-500/5 border-blue-500/20" : "bg-muted/30 border-border/30"
+      }`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <Timer className="w-3 h-3 text-primary" />
-            <span className="text-[9px] text-muted-foreground">Execution Time</span>
+            <Timer className={`w-3 h-3 ${isBreak ? "text-blue-500" : "text-primary"}`} />
+            <span className="text-[9px] text-muted-foreground">
+              {isBreak ? "Break" : "Execution Time"}
+            </span>
           </div>
           <div className="flex items-center gap-1">
-            <span className="text-sm font-mono font-bold text-primary">
+            <span className={`text-sm font-mono font-bold ${isBreak ? "text-blue-500" : "text-primary"}`}>
               {displayTime}
             </span>
-            {agent.status === "running" && <PulseRing size="sm" className="ml-0.5" />}
+            {isRunning && <PulseRing size="sm" className="ml-0.5" />}
+            {isBreak && (
+              <Badge variant="outline" className="text-[8px] px-1 py-0 h-4 bg-blue-500/10 text-blue-500 border-blue-500/30">
+                Waiting
+              </Badge>
+            )}
           </div>
         </div>
+        {isBreak && agent.breakReason && (
+          <p className="text-[8px] text-blue-400 mt-1 truncate">{agent.breakReason}</p>
+        )}
       </div>
     </div>
   )

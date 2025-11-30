@@ -4,6 +4,12 @@
 Performa is an autonomous cybersecurity AI agent system designed for security assessments, real-time monitoring, and automated threat detection. It features a sophisticated Next.js frontend and a Python FastAPI backend, leveraging multi-agent AI capabilities to enhance cybersecurity operations. The project aims to provide a powerful, efficient, and user-friendly platform for managing complex security tasks.
 
 ## Recent Updates (Nov 30, 2025)
+- **Break State for Agents**: Added blue "break" status when agents are waiting for AI model response or rate limit cooldown, with reason display
+- **Rate Limit Toggle**: Added toggle switch to enable/disable rate limiting with configurable 1-10 requests per second slider
+- **Execution Duration**: Added comprehensive duration options (5, 10, 15, 20, 30, 60, 120 min, custom, unlimited) with auto-stop when expired
+- **Tools Restriction**: New "allowedToolsOnly" feature to restrict agents to only use user-selected tools from categories (network_recon, web_scanning, vuln_scanning, osint, system_info)
+- **Config Sidebar Tabs**: Reorganized config sidebar with Basic, Advanced, and Tools tabs for better UX
+- **Unified MissionConfig**: Aligned MissionConfig interface across frontend and backend for consistent data flow
 - **Enhanced Mission Config**: Added batch size slider (5-30), rate limit control (0.1-5.0 RPS), and execution duration options (10-60 min or unlimited)
 - **Priority Tools System**: Users can specify priority tools that agents will prefer during scanning
 - **Grid/List View Toggle**: Active Agents section now supports grid and list view modes for better visualization

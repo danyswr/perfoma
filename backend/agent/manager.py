@@ -41,7 +41,8 @@ class AgentManager:
         batch_size: int = 20,
         rate_limit_rps: float = 1.0,
         execution_duration: Optional[int] = None,
-        requested_tools: Optional[List[str]] = None
+        requested_tools: Optional[List[str]] = None,
+        allowed_tools_only: bool = False
     ) -> List[str]:
         """Create multiple agents for operation"""
         agent_ids = []
@@ -79,7 +80,8 @@ class AgentManager:
                 batch_size=batch_size,
                 rate_limit_rps=rate_limit_rps,
                 execution_duration=execution_duration,
-                requested_tools=requested_tools or []
+                requested_tools=requested_tools or [],
+                allowed_tools_only=allowed_tools_only
             )
             
             self.agents[agent_id] = agent
@@ -374,7 +376,7 @@ class AgentManager:
         
         return summary
     
-    async def generate_report(self, target: str = None):
+    async def generate_report(self, target: Optional[str] = None):
         """Generate final report of all findings - JSON/TXT/PDF only (no HTML)"""
         from monitor.log import ReportGenerator
         

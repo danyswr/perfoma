@@ -29,6 +29,7 @@ class TargetInput(BaseModel):
     rate_limit_rps: float = 1.0  # requests per second
     execution_duration: Optional[int] = None  # minutes, None = unlimited
     requested_tools: List[str] = []  # priority tools
+    allowed_tools_only: bool = False  # restrict to selected tools only
 
 class CommandBatch(BaseModel):
     commands: Dict[str, str]  # {"1": "RUN nmap ...", "2": "RUN nikto ..."}
@@ -62,7 +63,8 @@ async def start_operation(target: TargetInput, background_tasks: BackgroundTasks
             batch_size=target.batch_size,
             rate_limit_rps=target.rate_limit_rps,
             execution_duration=target.execution_duration,
-            requested_tools=target.requested_tools
+            requested_tools=target.requested_tools,
+            allowed_tools_only=target.allowed_tools_only
         )
         
         background_tasks.add_task(

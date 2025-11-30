@@ -70,7 +70,8 @@ class AgentWorker:
         batch_size: int = 20,
         rate_limit_rps: float = 1.0,
         execution_duration: Optional[int] = None,
-        requested_tools: Optional[List[str]] = None
+        requested_tools: Optional[List[str]] = None,
+        allowed_tools_only: bool = False
     ):
         self.agent_id = agent_id
         self.agent_number = agent_number
@@ -90,7 +91,9 @@ class AgentWorker:
         self.rate_limit_rps = rate_limit_rps
         self.execution_duration = execution_duration
         self.requested_tools = requested_tools or []
+        self.allowed_tools_only = allowed_tools_only
         self.execution_start_time: Optional[datetime] = None
+        self.break_reason: Optional[str] = None
         
         self.executor = CommandExecutor(agent_id, stealth_mode, stealth_config, target, os_type)
         self.model_router = ModelRouter()
@@ -320,10 +323,40 @@ class AgentWorker:
                 message["cpu_usage"] = round(self._last_cpu_usage, 1)
             if self._last_memory_usage is not None:
                 message["memory_usage"] = self._last_memory_usage
+            if self.break_reason:
+                message["break_reason"] = self.break_reason
             
             await manager.broadcast(message)
         except Exception:
             pass
+    
+    async def _set_break_status(self, reason: str):
+        """Set agent to break status with reason"""
+        self.status = "break"
+        self.break_reason = reason
+        await self._broadcast_status_update()
+    
+    async def _clear_break_status(self):
+        """Clear break status and resume running"""
+        self.status = "running"
+        self.break_reason = None
+        await self._broadcast_status_update()
+    
+    def _check_execution_duration_expired(self) -> bool:
+        """Check if execution duration has expired"""
+        if not self.execution_duration or not self.execution_start_time:
+            return False
+        elapsed_minutes = (datetime.now() - self.execution_start_time).total_seconds() / 60
+        return elapsed_minutes >= self.execution_duration
+    
+    def _is_tool_allowed_by_user(self, cmd: str) -> bool:
+        """Check if tool is allowed based on user selection"""
+        if not self.allowed_tools_only or not self.requested_tools:
+            return True
+        tool = cmd.split()[0] if cmd else ""
+        if tool.startswith("RUN "):
+            tool = tool[4:].split()[0]
+        return tool.lower() in [t.lower() for t in self.requested_tools]
     
     def _get_execution_time_str(self) -> str:
         """Get formatted execution time string"""
@@ -353,6 +386,7 @@ class AgentWorker:
     async def _run_autonomous_loop(self):
         """Main autonomous execution loop - uses shared queue for token efficiency"""
         
+        self.execution_start_time = datetime.now()
         system_prompt = self._build_system_prompt()
         
         iteration = 0
@@ -365,6 +399,17 @@ class AgentWorker:
         shared_queue = get_shared_queue()
         
         while not self.stopped and iteration < max_iterations:
+            if self._check_execution_duration_expired():
+                self.last_execute = f"Execution duration ({self.execution_duration}min) reached - stopping"
+                self.status = "completed"
+                await self.logger.log_event(
+                    f"Agent {self.agent_id} stopped - execution duration expired",
+                    "agent",
+                    {"duration_minutes": self.execution_duration}
+                )
+                await self._broadcast_status_update()
+                break
+            
             while self.paused and not self.stopped:
                 self.last_execute = "Agent paused"
                 await asyncio.sleep(1)
@@ -377,6 +422,13 @@ class AgentWorker:
                 cmd = instruction.get("command", "")
                 instruction_id = instruction.get("id")
                 if cmd.startswith("RUN "):
+                    if not self._is_tool_allowed_by_user(cmd):
+                        tool_name = cmd[4:].split()[0] if len(cmd) > 4 else "unknown"
+                        self.last_execute = f"BLOCKED: Tool '{tool_name}' not in allowed list"
+                        await shared_queue.fail_instruction(instruction_id, self.agent_id, f"Tool {tool_name} not allowed by user")
+                        await self._broadcast_status_update()
+                        continue
+                    
                     self.last_execute = f"Executing: {cmd[4:50]}..."
                     await self._broadcast_status_update()
                     try:
@@ -394,8 +446,8 @@ class AgentWorker:
                 await self._broadcast_status_update()
                 break
             
+            await self._set_break_status("Waiting for model response...")
             self.last_execute = f"Iteration {iteration}: Requesting instructions..."
-            await self._broadcast_status_update()
             
             user_message = self._build_user_message(iteration)
             
@@ -407,6 +459,7 @@ class AgentWorker:
                 
                 if rate_limit_check.get("wait_time", 0) > 0:
                     wait_time = rate_limit_check["wait_time"]
+                    await self._set_break_status(f"Rate limit delay: {wait_time:.1f}s")
                     self.last_execute = f"Rate limit delay: {wait_time:.1f}s"
                     await self.logger.log_event(
                         f"Agent {self.agent_id} rate limit delay",
@@ -423,6 +476,8 @@ class AgentWorker:
                     self.context_history[-self._max_context_history:]
                 )
                 execution_time = time.time() - start_time
+                
+                await self._clear_break_status()
                 
                 await self.rate_limiter.record_request(
                     self.model_name, 
