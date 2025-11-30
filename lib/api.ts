@@ -56,6 +56,10 @@ export const api = {
     os_type?: string
     stealth_options?: Record<string, boolean>
     capabilities?: Record<string, boolean>
+    batch_size?: number
+    rate_limit_rps?: number
+    execution_duration?: number | null
+    requested_tools?: string[]
   }) {
     try {
       const res = await fetch(`${API_BASE}/api/start`, {
@@ -63,7 +67,17 @@ export const api = {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
       })
-      return handleResponse<{ status: string; agent_ids: string[]; timestamp: string }>(res)
+      return handleResponse<{ 
+        status: string
+        agent_ids: string[]
+        timestamp: string
+        config?: {
+          batch_size: number
+          rate_limit_rps: number
+          execution_duration: number | null
+          requested_tools: string[]
+        }
+      }>(res)
     } catch {
       return { error: "Cannot connect to backend server. Make sure it's running." }
     }

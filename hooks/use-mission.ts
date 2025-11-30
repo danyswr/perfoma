@@ -69,6 +69,10 @@ export function useMission() {
           os_type: config.osType,
           stealth_options: config.stealthOptions as unknown as Record<string, boolean>,
           capabilities: config.capabilities as unknown as Record<string, boolean>,
+          batch_size: config.batchSize,
+          rate_limit_rps: config.rateLimitRps,
+          execution_duration: config.executionDuration,
+          requested_tools: config.requestedTools,
         })
 
         if (response.error) {
@@ -91,6 +95,7 @@ export function useMission() {
           completedTasks: 0,
           findings: 0,
           startTime: missionStartTime,
+          maxDuration: config.executionDuration ? config.executionDuration * 60 : null,
         })
 
         timerRef.current = setInterval(() => {

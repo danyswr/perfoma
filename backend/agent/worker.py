@@ -66,7 +66,11 @@ class AgentWorker:
         stealth_config: Optional[Dict] = None,
         os_type: str = "linux",
         stealth_options: Optional[Dict] = None,
-        capabilities: Optional[Dict] = None
+        capabilities: Optional[Dict] = None,
+        batch_size: int = 20,
+        rate_limit_rps: float = 1.0,
+        execution_duration: Optional[int] = None,
+        requested_tools: Optional[List[str]] = None
     ):
         self.agent_id = agent_id
         self.agent_number = agent_number
@@ -81,6 +85,12 @@ class AgentWorker:
         self.os_type = os_type
         self.stealth_options = stealth_options or {}
         self.capabilities = capabilities or {}
+        
+        self.batch_size = batch_size
+        self.rate_limit_rps = rate_limit_rps
+        self.execution_duration = execution_duration
+        self.requested_tools = requested_tools or []
+        self.execution_start_time: Optional[datetime] = None
         
         self.executor = CommandExecutor(agent_id, stealth_mode, stealth_config, target, os_type)
         self.model_router = ModelRouter()

@@ -10,17 +10,23 @@ from server.config import settings
 from monitor.log import setup_logging
 import os
 
-# Create necessary directories
 os.makedirs(settings.LOG_DIR, exist_ok=True)
 os.makedirs(settings.FINDINGS_DIR, exist_ok=True)
 
-# Setup logging
 setup_logging()
+
+async def init_database():
+    try:
+        from database.connection import init_db
+        init_db()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Database initialization warning: {e}")
 
 app = FastAPI(
     title="Autonomous CyberSec AI Agent System",
     description="Multi-agent AI system for cyber security operations",
-    version="1.0.0"
+    version="2.0.0"
 )
 
 # CORS configuration
@@ -41,6 +47,7 @@ app.include_router(ws_router, prefix="/ws", tags=["websocket"])
 @app.on_event("startup")
 async def startup_event():
     print("🚀 Autonomous CyberSec AI Agent System Starting...")
+    await init_database()
     print(f"📁 Log Directory: {settings.LOG_DIR}")
     print(f"📁 Findings Directory: {settings.FINDINGS_DIR}")
     print(f"🔑 OpenRouter API Key: {'✓ Configured' if settings.OPENROUTER_API_KEY else '✗ Missing'}")

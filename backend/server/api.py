@@ -25,6 +25,10 @@ class TargetInput(BaseModel):
     os_type: str = "linux"  # linux or windows
     stealth_options: Optional[Dict[str, bool]] = None
     capabilities: Optional[Dict[str, bool]] = None
+    batch_size: int = 20  # 5-30 predictions per batch
+    rate_limit_rps: float = 1.0  # requests per second
+    execution_duration: Optional[int] = None  # minutes, None = unlimited
+    requested_tools: List[str] = []  # priority tools
 
 class CommandBatch(BaseModel):
     commands: Dict[str, str]  # {"1": "RUN nmap ...", "2": "RUN nikto ..."}
@@ -44,7 +48,6 @@ class ModelTestInput(BaseModel):
 async def start_operation(target: TargetInput, background_tasks: BackgroundTasks):
     """Start autonomous cyber security operation"""
     try:
-        # Create agents with all configuration options
         agent_ids = await agent_manager.create_agents(
             num_agents=min(target.num_agents, 10),
             target=target.target,
@@ -55,10 +58,13 @@ async def start_operation(target: TargetInput, background_tasks: BackgroundTasks
             model_name=target.model_name,
             os_type=target.os_type,
             stealth_options=target.stealth_options,
-            capabilities=target.capabilities
+            capabilities=target.capabilities,
+            batch_size=target.batch_size,
+            rate_limit_rps=target.rate_limit_rps,
+            execution_duration=target.execution_duration,
+            requested_tools=target.requested_tools
         )
         
-        # Start operation in background with full config
         background_tasks.add_task(
             agent_manager.start_operation,
             agent_ids,
@@ -68,6 +74,12 @@ async def start_operation(target: TargetInput, background_tasks: BackgroundTasks
         return {
             "status": "started",
             "agent_ids": agent_ids,
+            "config": {
+                "batch_size": target.batch_size,
+                "rate_limit_rps": target.rate_limit_rps,
+                "execution_duration": target.execution_duration,
+                "requested_tools": target.requested_tools
+            },
             "timestamp": datetime.now().isoformat()
         }
     except Exception as e:

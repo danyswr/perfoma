@@ -61,13 +61,17 @@ export default function Dashboard() {
     stealthOptions: DEFAULT_STEALTH_OPTIONS,
     capabilities: DEFAULT_CAPABILITY_OPTIONS,
     osType: "linux",
+    batchSize: 20,
+    rateLimitRps: 1.0,
+    executionDuration: null,
+    requestedTools: [],
   })
   const [customModelId, setCustomModelId] = useState("")
   const [testingApi, setTestingApi] = useState(false)
   const [apiTestResult, setApiTestResult] = useState<{success: boolean, message: string} | null>(null)
   const [apiTestPassed, setApiTestPassed] = useState(false)
-  const [requestedTools, setRequestedTools] = useState<string[]>([])
   const [toolInput, setToolInput] = useState("")
+  const [agentViewMode, setAgentViewMode] = useState<"list" | "grid">("list")
 
   useEffect(() => {
     let isMounted = true
@@ -247,6 +251,24 @@ export default function Dashboard() {
                     <Badge variant="secondary">{agents.length}/10</Badge>
                   </div>
                   <div className="flex items-center gap-2">
+                    <div className="flex border border-border rounded-md overflow-hidden">
+                      <Button
+                        variant={agentViewMode === "list" ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => setAgentViewMode("list")}
+                        className="h-7 px-2 rounded-none"
+                      >
+                        <ListOrdered className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant={agentViewMode === "grid" ? "secondary" : "ghost"}
+                        size="sm"
+                        onClick={() => setAgentViewMode("grid")}
+                        className="h-7 px-2 rounded-none"
+                      >
+                        <Network className="w-3 h-3" />
+                      </Button>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -260,8 +282,8 @@ export default function Dashboard() {
                       disabled={agents.length >= 10 || backendStatus !== "online"}
                       className="h-7 text-xs"
                     >
-                      <Bot className="w-3 h-3 mr-1" />
-                      Add Agent
+                      <Plus className="w-3 h-3 mr-1" />
+                      Add
                     </Button>
                     {agents.length > 0 && (
                       <Button
@@ -270,8 +292,7 @@ export default function Dashboard() {
                         onClick={() => agents.forEach(a => removeAgent(a.id))}
                         className="h-7 text-xs text-destructive hover:text-destructive"
                       >
-                        <Trash2 className="w-3 h-3 mr-1" />
-                        Clear All
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     )}
                   </div>
@@ -300,11 +321,12 @@ export default function Dashboard() {
                   </div>
                 ) : (
                   <ScrollArea className="h-full">
-                    <div className="flex flex-col gap-2 p-2">
+                    <div className={agentViewMode === "grid" ? "grid grid-cols-2 gap-2 p-2" : "flex flex-col gap-2 p-2"}>
                       {agents.map((agent) => (
                         <AgentCard
                           key={agent.id}
                           agent={agent}
+                          viewMode={agentViewMode}
                           onDetail={() => setSelectedAgent(agent)}
                           onPause={() => pauseAgent(agent.id)}
                           onResume={() => resumeAgent(agent.id)}
@@ -538,12 +560,78 @@ export default function Dashboard() {
               {configTab === "tools" && (
                 <div className="space-y-4">
                   <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium flex items-center gap-2">
+                        <Timer className="w-4 h-4 text-orange-500" />
+                        Execution Duration
+                      </Label>
+                      <Badge variant="secondary">{config.executionDuration ? `${config.executionDuration} min` : "Until stopped"}</Badge>
+                    </div>
+                    <Select 
+                      value={config.executionDuration?.toString() || "unlimited"} 
+                      onValueChange={(v) => setConfig({ ...config, executionDuration: v === "unlimited" ? null : parseInt(v) })}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10 minutes</SelectItem>
+                        <SelectItem value="20">20 minutes</SelectItem>
+                        <SelectItem value="30">30 minutes</SelectItem>
+                        <SelectItem value="60">60 minutes</SelectItem>
+                        <SelectItem value="unlimited">Until stopped</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-blue-500" />
+                        Rate Limit (req/sec)
+                      </Label>
+                      <Badge variant="secondary">{config.rateLimitRps} RPS</Badge>
+                    </div>
+                    <Slider
+                      value={[config.rateLimitRps * 10]}
+                      onValueChange={(v) => setConfig({ ...config, rateLimitRps: v[0] / 10 })}
+                      min={1}
+                      max={50}
+                      step={1}
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground">
+                      <span>0.1 - Slow</span>
+                      <span>5.0 - Fast</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium flex items-center gap-2">
+                        <Brain className="w-4 h-4 text-purple-500" />
+                        Batch Size (predictions)
+                      </Label>
+                      <Badge variant="secondary">{config.batchSize}</Badge>
+                    </div>
+                    <Slider
+                      value={[config.batchSize]}
+                      onValueChange={(v) => setConfig({ ...config, batchSize: v[0] })}
+                      min={5}
+                      max={30}
+                      step={5}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Higher batch size = fewer API calls, more tokens per call
+                    </p>
+                  </div>
+
+                  <div className="border-t border-border pt-4 space-y-2">
                     <Label className="text-xs font-medium flex items-center gap-2">
                       <Wrench className="w-4 h-4 text-primary" />
                       Priority Tools Request
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      Specify tools that the AI agent should prioritize. Enter tool names one by one and press Enter or click Add.
+                      Specify tools that the AI agent should prioritize.
                     </p>
                   </div>
 
@@ -555,8 +643,8 @@ export default function Dashboard() {
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && toolInput.trim()) {
                           e.preventDefault()
-                          if (!requestedTools.includes(toolInput.trim().toLowerCase())) {
-                            setRequestedTools([...requestedTools, toolInput.trim().toLowerCase()])
+                          if (!config.requestedTools.includes(toolInput.trim().toLowerCase())) {
+                            setConfig({ ...config, requestedTools: [...config.requestedTools, toolInput.trim().toLowerCase()] })
                           }
                           setToolInput("")
                         }
@@ -567,8 +655,8 @@ export default function Dashboard() {
                       size="sm"
                       className="h-9"
                       onClick={() => {
-                        if (toolInput.trim() && !requestedTools.includes(toolInput.trim().toLowerCase())) {
-                          setRequestedTools([...requestedTools, toolInput.trim().toLowerCase()])
+                        if (toolInput.trim() && !config.requestedTools.includes(toolInput.trim().toLowerCase())) {
+                          setConfig({ ...config, requestedTools: [...config.requestedTools, toolInput.trim().toLowerCase()] })
                           setToolInput("")
                         }
                       }}
@@ -579,21 +667,21 @@ export default function Dashboard() {
                     </Button>
                   </div>
 
-                  {requestedTools.length > 0 ? (
+                  {config.requestedTools.length > 0 ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Priority Tools ({requestedTools.length})</span>
+                        <span className="text-xs text-muted-foreground">Priority Tools ({config.requestedTools.length})</span>
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-6 text-xs text-destructive hover:text-destructive"
-                          onClick={() => setRequestedTools([])}
+                          onClick={() => setConfig({ ...config, requestedTools: [] })}
                         >
                           Clear All
                         </Button>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        {requestedTools.map((tool, index) => (
+                        {config.requestedTools.map((tool, index) => (
                           <div
                             key={tool}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary/10 border border-primary/20 group"
@@ -605,7 +693,7 @@ export default function Dashboard() {
                               variant="ghost"
                               size="icon"
                               className="h-4 w-4 opacity-60 hover:opacity-100 hover:bg-destructive/20"
-                              onClick={() => setRequestedTools(requestedTools.filter(t => t !== tool))}
+                              onClick={() => setConfig({ ...config, requestedTools: config.requestedTools.filter(t => t !== tool) })}
                             >
                               <X className="w-3 h-3" />
                             </Button>
@@ -614,22 +702,14 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ) : (
-                    <div className="text-center py-6 border border-dashed border-border rounded-lg">
-                      <Wrench className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-30" />
-                      <p className="text-xs text-muted-foreground">No tools requested yet</p>
-                      <p className="text-[10px] text-muted-foreground">Agent will use default toolset</p>
+                    <div className="text-center py-4 border border-dashed border-border rounded-lg">
+                      <Wrench className="w-6 h-6 mx-auto mb-1 text-muted-foreground opacity-30" />
+                      <p className="text-xs text-muted-foreground">No tools requested</p>
                     </div>
                   )}
 
-                  <div className="p-3 rounded-lg bg-muted/30 border border-border">
-                    <p className="text-[10px] text-muted-foreground">
-                      <strong>Note:</strong> Priority tools will be preferred by the AI agent during scanning. 
-                      Other tools may still be used if required for the operation (e.g., reconnaissance tools for info gathering).
-                    </p>
-                  </div>
-
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Common Security Tools</Label>
+                    <Label className="text-xs font-medium">Quick Add Tools</Label>
                     <div className="flex flex-wrap gap-1">
                       {["nmap", "sqlmap", "nikto", "dirb", "gobuster", "wfuzz", "hydra", "ffuf", "nuclei", "subfinder"].map(tool => (
                         <Button
@@ -638,13 +718,13 @@ export default function Dashboard() {
                           size="sm"
                           className="h-6 text-[10px]"
                           onClick={() => {
-                            if (!requestedTools.includes(tool)) {
-                              setRequestedTools([...requestedTools, tool])
+                            if (!config.requestedTools.includes(tool)) {
+                              setConfig({ ...config, requestedTools: [...config.requestedTools, tool] })
                             }
                           }}
-                          disabled={requestedTools.includes(tool)}
+                          disabled={config.requestedTools.includes(tool)}
                         >
-                          {requestedTools.includes(tool) ? <Check className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+                          {config.requestedTools.includes(tool) ? <Check className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
                           {tool}
                         </Button>
                       ))}
@@ -938,7 +1018,7 @@ function AgentDetailModal({ agent, onClose }: { agent: Agent | null; onClose: ()
   )
 }
 
-function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Agent; onDetail: () => void; onPause: () => void; onResume: () => void; onRemove: () => void }) {
+function AgentCard({ agent, viewMode = "list", onDetail, onPause, onResume, onRemove }: { agent: Agent; viewMode?: "list" | "grid"; onDetail: () => void; onPause: () => void; onResume: () => void; onRemove: () => void }) {
   const [displayTime, setDisplayTime] = useState(formatExecutionTime(agent.executionTime))
   
   useEffect(() => {
@@ -982,6 +1062,33 @@ function AgentCard({ agent, onDetail, onPause, onResume, onRemove }: { agent: Ag
     running: "bg-emerald-500",
     paused: "bg-yellow-500",
     error: "bg-red-500",
+  }
+
+  if (viewMode === "grid") {
+    return (
+      <div className={`p-3 rounded-lg border ${statusColors[agent.status]} transition-all hover:shadow-md cursor-pointer group`} onClick={onDetail}>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <div className={`w-7 h-7 rounded-md flex items-center justify-center ${agent.status === "running" ? "bg-primary/10" : "bg-muted"}`}>
+                <Bot className={`w-3.5 h-3.5 ${agent.status === "running" ? "text-primary" : "text-muted-foreground"}`} />
+              </div>
+              <div className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full border border-background ${statusDot[agent.status]}`} />
+            </div>
+            <span className="font-semibold text-xs">Agent-{agent.displayId || agent.id.slice(0,4)}</span>
+          </div>
+          <Badge variant="outline" className="text-[9px] h-4 capitalize">{agent.status}</Badge>
+        </div>
+        <div className="p-1.5 rounded bg-black/80 font-mono text-[9px] text-green-400 truncate mb-2 border border-green-900/30">
+          {agent.lastCommand?.slice(0, 30) || "Waiting..."}
+        </div>
+        <div className="flex items-center justify-center gap-1 text-primary">
+          <Timer className="w-3 h-3" />
+          <span className="text-sm font-mono font-bold">{displayTime}</span>
+          {agent.status === "running" && <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+        </div>
+      </div>
+    )
   }
 
   return (

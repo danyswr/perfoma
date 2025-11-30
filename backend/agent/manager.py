@@ -37,7 +37,11 @@ class AgentManager:
         stealth_config: Optional[Dict] = None,
         os_type: str = "linux",
         stealth_options: Optional[Dict] = None,
-        capabilities: Optional[Dict] = None
+        capabilities: Optional[Dict] = None,
+        batch_size: int = 20,
+        rate_limit_rps: float = 1.0,
+        execution_duration: Optional[int] = None,
+        requested_tools: Optional[List[str]] = None
     ) -> List[str]:
         """Create multiple agents for operation"""
         agent_ids = []
@@ -50,7 +54,7 @@ class AgentManager:
                 "timing_strategy": settings.TIMING_STRATEGY,
                 "proxy_strategy": settings.PROXY_STRATEGY,
                 "enable_obfuscation": settings.ENABLE_TRAFFIC_OBFUSCATION,
-                "min_delay": settings.DEFAULT_DELAY_MIN * 2,  # Double for stealth
+                "min_delay": settings.DEFAULT_DELAY_MIN * 2,
                 "max_delay": settings.DEFAULT_DELAY_MAX * 3,
             }
         
@@ -71,20 +75,23 @@ class AgentManager:
                 stealth_config=stealth_config,
                 os_type=os_type,
                 stealth_options=stealth_options,
-                capabilities=capabilities
+                capabilities=capabilities,
+                batch_size=batch_size,
+                rate_limit_rps=rate_limit_rps,
+                execution_duration=execution_duration,
+                requested_tools=requested_tools or []
             )
             
             self.agents[agent_id] = agent
             agent_ids.append(agent_id)
             
-            # Register agent with collaboration system
             cap = AgentCapability(
                 agent_id=agent_id,
                 specializations=["general"],
                 current_load=0.0,
                 status="idle",
                 target=target,
-                tools_available=[],
+                tools_available=requested_tools or [],
                 findings_count=0
             )
             await self.collaboration_bus.register_agent(agent_id, cap)
@@ -92,7 +99,7 @@ class AgentManager:
             await self.logger.log_event(
                 f"Agent {agent_id} created",
                 "system",
-                {"agent_number": i + 1, "target": target}
+                {"agent_number": i + 1, "target": target, "batch_size": batch_size, "rate_limit": rate_limit_rps}
             )
         
         return agent_ids

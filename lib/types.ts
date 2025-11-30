@@ -9,7 +9,21 @@ export interface MissionConfig {
   stealthOptions: StealthOptions
   capabilities: CapabilityOptions
   osType: "windows" | "linux"
+  batchSize: number
+  rateLimitRps: number
+  executionDuration: number | null
+  requestedTools: string[]
 }
+
+export type ExecutionDuration = 10 | 20 | 30 | 60 | null
+
+export const EXECUTION_DURATION_OPTIONS = [
+  { value: 10, label: "10 minutes" },
+  { value: 20, label: "20 minutes" },
+  { value: 30, label: "30 minutes" },
+  { value: 60, label: "60 minutes" },
+  { value: null, label: "Until stopped" },
+] as const
 
 export interface StealthOptions {
   proxyChain: boolean
@@ -36,6 +50,13 @@ export interface CapabilityOptions {
   websocketHijack: boolean
 }
 
+export interface QuickMissionSummary {
+  total_findings: number
+  severity_breakdown: Record<string, number>
+  duration: number
+  agents_used: number
+}
+
 export interface Mission {
   active: boolean
   target: string
@@ -48,6 +69,9 @@ export interface Mission {
   completedTasks: number
   findings: number
   startTime?: number
+  maxDuration?: number | null
+  summary?: QuickMissionSummary | null
+  reportsGenerated?: string[]
 }
 
 export interface Agent {
@@ -102,6 +126,57 @@ export interface Finding {
   timestamp: string
   details?: string
   remediation?: string
+  ipAddress?: string
+  port?: number
+  protocol?: string
+  service?: string
+  toolUsed?: string
+  commandExecuted?: string
+  rawOutput?: string
+}
+
+export interface MissionSummary {
+  id: string
+  missionId: string
+  totalFindings: number
+  criticalCount: number
+  highCount: number
+  mediumCount: number
+  lowCount: number
+  infoCount: number
+  openPorts: PortInfo[]
+  servicesFound: string[]
+  vulnerabilities: VulnerabilityInfo[]
+  targetsScanned: string[]
+  agentsUsed: number
+  totalCommands: number
+  durationSeconds: number
+  summaryText?: string
+  recommendations: string[]
+  createdAt: string
+}
+
+export interface PortInfo {
+  port: number
+  protocol: string
+  service: string
+  state: string
+}
+
+export interface VulnerabilityInfo {
+  title: string
+  severity: string
+  cve?: string
+  description: string
+}
+
+export interface SavedProgress {
+  id: string
+  name: string
+  description?: string
+  missionConfig: MissionConfig
+  canResume: boolean
+  createdAt: string
 }
 
 export interface Resources {
